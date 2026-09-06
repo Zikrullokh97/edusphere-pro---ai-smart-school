@@ -1,0 +1,11 @@
+{
+  "name": "EduSphere Pro - AI Smart School",
+  "description": "Next-generation AI-powered School ERP, LMS, Digital Classroom, and Personalized Learning Platform for Central Asian schools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

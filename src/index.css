@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  button, input, select, textarea, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  img, video, canvas {
+    max-width: 100%;
+  }
+
+  input, select, textarea {
+    max-width: 100%;
+  }
+}
+
+#main-workspace-content {
+  min-width: 0;
+}
+
+/* Touch active scale & feedback helper utility classes */
+.touch-press {
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.touch-press:active {
+  transform: scale(0.97);
+}

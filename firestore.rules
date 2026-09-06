@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function hasRole(role) { return isSignedIn() && profile().role == role; }
+    function isAdmin() { return hasRole('admin'); }
+    function isStaff() { return isAdmin() || hasRole('teacher'); }
+    function sameSchool(data) { return isSignedIn() && data.schoolId == 'school-71-tashkent' && profile().schoolId == 'school-71-tashkent'; }
+    function canAccessStudent(data) {
+      return sameSchool(data) && (isAdmin() ||
+        (hasRole('parent_student') && data.studentId == request.auth.uid) ||
+        (hasRole('parent_student') && data.studentId in profile().childrenIds) ||
+        (hasRole('teacher') && data.className in profile().assignedClasses));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.role in ['teacher', 'parent_student', 'admin'] &&
+             data.schoolId == 'school-71-tashkent';
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() && sameSchool(resource.data));
+      allow list: if isAdmin() && sameSchool(resource.data);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming()) && incoming().userId == request.auth.uid && incoming().role == 'parent_student' && incoming().schoolId == 'school-71-tashkent';
+      allow update: if isSignedIn() && ((request.auth.uid == userId && incoming().role == existing().role && incoming().schoolId == existing().schoolId) || isAdmin() && sameSchool(existing())) && isValidId(userId) && isValidUser(incoming()) && incoming().userId == existing().userId;
+      allow delete: if false;
+    }
+
+    // Attendance Collection
+    function isValidAttendance(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.className is string && data.className.size() <= 64 &&
+             data.date is string && data.date.size() <= 32 &&
+             data.status in ['present', 'late', 'absent', 'excused'];
+    }
+
+    match /attendance/{recordId} {
+      allow get: if isValidId(recordId) && canAccessStudent(resource.data);
+      allow list: if isStaff() && sameSchool(resource.data);
+      allow create: if isValidId(recordId) && isValidAttendance(incoming()) && (isAdmin() || (hasRole('teacher') && incoming().className in profile().assignedClasses)) && sameSchool(incoming());
+      allow update: if isValidId(recordId) && isValidAttendance(incoming()) && (isAdmin() || (hasRole('teacher') && incoming().className in profile().assignedClasses)) && sameSchool(existing()) && sameSchool(incoming()) && incoming().id == existing().id;
+      allow delete: if isAdmin() && sameSchool(resource.data);
+    }
+
+    // Grades Collection
+    function isValidGrade(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.className is string && data.className.size() <= 64 &&
+             data.subject is string && data.subject.size() <= 128 &&
+             data.average is number;
+    }
+
+    match /grades/{gradeId} {
+      allow get: if isValidId(gradeId) && canAccessStudent(resource.data);
+      allow list: if isStaff() && sameSchool(resource.data);
+      allow create: if isValidId(gradeId) && isValidGrade(incoming()) && (isAdmin() || (hasRole('teacher') && incoming().className in profile().assignedClasses)) && sameSchool(incoming());
+      allow update: if isValidId(gradeId) && isValidGrade(incoming()) && (isAdmin() || (hasRole('teacher') && incoming().className in profile().assignedClasses)) && sameSchool(existing()) && sameSchool(incoming()) && incoming().id == existing().id;
+      allow delete: if isAdmin() && sameSchool(resource.data);
+    }
+
+    // Workspace Exports Collection (Sheets, Docs, Gmail, Contacts)
+    function isValidWorkspaceExport(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.type in ['sheet', 'doc', 'gmail', 'contact'] &&
+             data.title is string && data.title.size() <= 256 &&
+             data.status in ['success', 'pending', 'failed'];
+    }
+
+    match /workspace_exports/{exportId} {
+      allow get: if isSignedIn() && isValidId(exportId) && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(exportId) && isValidWorkspaceExport(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(exportId) && isValidWorkspaceExport(incoming()) && incoming().userId == request.auth.uid && incoming().id == existing().id;
+      allow delete: if isSignedIn() && isValidId(exportId) && resource.data.userId == request.auth.uid;
+    }
+
+    match /students/{studentId} {
+      allow read: if isAdmin() && sameSchool(resource.data) || hasRole('teacher') && sameSchool(resource.data) && resource.data.grade in profile().assignedClasses || hasRole('parent_student') && resource.data.userId == request.auth.uid || hasRole('parent_student') && studentId in profile().childrenIds;
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /teachers/{teacherId} {
+      allow read: if isAdmin() && sameSchool(resource.data) || hasRole('teacher') && resource.data.userId == request.auth.uid;
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /classes/{classId} {
+      allow read: if isSignedIn() && sameSchool(resource.data);
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /subjects/{subjectId} {
+      allow read: if isSignedIn() && sameSchool(resource.data);
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /schedules/{scheduleId} {
+      allow read: if isSignedIn() && sameSchool(resource.data);
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /homework/{homeworkId} {
+      allow read: if isAdmin() && sameSchool(resource.data) || hasRole('teacher') && sameSchool(resource.data) && resource.data.teacherId == request.auth.uid || hasRole('parent_student') && sameSchool(resource.data) && (request.auth.uid in resource.data.assignedStudentIds || ('childrenIds' in profile() && resource.data.assignedStudentIds.hasAny(profile().childrenIds)));
+      allow write: if isAdmin() || hasRole('teacher') && sameSchool(incoming()) && incoming().teacherId == request.auth.uid;
+    }
+    match /journals/{journalId} {
+      allow read: if (isAdmin() && sameSchool(resource.data)) || (hasRole('teacher') && sameSchool(resource.data) && resource.data.teacherId == request.auth.uid);
+      allow write: if (isAdmin() && sameSchool(incoming())) || (hasRole('teacher') && sameSchool(incoming()) && incoming().teacherId == request.auth.uid);
+    }
+    match /documents/{docId} {
+      allow read: if isSignedIn() && sameSchool(resource.data);
+      allow write: if isAdmin() || (hasRole('teacher') && sameSchool(incoming()));
+    }
+    match /settings/{settingId} {
+      allow read: if isSignedIn() && sameSchool(resource.data);
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if isAdmin() && sameSchool(incoming());
+    }
+    match /auditLogs/{auditId} {
+      allow read: if isAdmin() && sameSchool(resource.data);
+      allow write: if false;
+    }
+    match /ai_usage/{usageId} {
+      allow read: if isAdmin() && sameSchool(resource.data);
+      allow write: if false;
+    }
+    match /rate_limits/{limitId} {
+      allow read, write: if false;
+    }
+
+    match /{collection}/{documentId} {
+      allow read, write: if false;
+    }
+  }
+}

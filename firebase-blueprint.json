@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role, school affiliation, and identity info",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "role": { "type": "string", "enum": ["admin", "teacher", "parent_student"] },
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "role", "createdAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily student attendance check-in entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "maxLength": 128 },
+        "className": { "type": "string", "maxLength": 64 },
+        "date": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["present", "late", "absent", "excused"] },
+        "time": { "type": "string", "maxLength": 32 },
+        "checkInTime": { "type": "string", "maxLength": 32 },
+        "method": { "type": "string", "enum": ["face_id", "qr_scan", "nfc", "manual"] },
+        "confidence": { "type": "number" },
+        "verifiedByTeacher": { "type": "boolean" },
+        "syncedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "className", "date", "status"]
+    },
+    "GradeRecord": {
+      "title": "GradeRecord",
+      "description": "Student subject continuous assessment ledger",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "maxLength": 128 },
+        "className": { "type": "string", "maxLength": 64 },
+        "subject": { "type": "string", "maxLength": 128 },
+        "homework": { "type": "array" },
+        "quizzes": { "type": "array" },
+        "midterm": { "type": "number" },
+        "finalExam": { "type": "number" },
+        "average": { "type": "number" },
+        "teacherFeedback": { "type": "string", "maxLength": 1024 },
+        "syncedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "className", "subject", "average"]
+    },
+    "WorkspaceExport": {
+      "title": "WorkspaceExport",
+      "description": "Track Google Sheets, Docs, and Gmail export operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["sheet", "doc", "gmail", "contact"] },
+        "title": { "type": "string", "maxLength": 256 },
+        "externalId": { "type": "string", "maxLength": 256 },
+        "url": { "type": "string", "maxLength": 512 },
+        "status": { "type": "string", "enum": ["success", "pending", "failed"] },
+        "details": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "type", "title", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Application user profiles and credentials"
+    },
+    "/attendance/{recordId}": {
+      "schema": "AttendanceRecord",
+      "description": "Student attendance ledger"
+    },
+    "/grades/{gradeId}": {
+      "schema": "GradeRecord",
+      "description": "Student continuous grading book"
+    },
+    "/workspace_exports/{exportId}": {
+      "schema": "WorkspaceExport",
+      "description": "Google Sheets, Docs, and Gmail export ledger"
+    }
+  }
+}
