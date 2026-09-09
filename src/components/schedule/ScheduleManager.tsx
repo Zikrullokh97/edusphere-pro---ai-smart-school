@@ -29,7 +29,7 @@ import {
   Printer,
   FileSpreadsheet,
 } from 'lucide-react';
-import { AppLanguage, ScheduleSlot, UserRole, TeacherRecord } from '../../types';
+import { AppLanguage, ScheduleSlot, UserRole, TeacherRecord, UserProfile } from '../../types';
 import { useI18n } from '../../lib/i18n';
 import {
   TeacherWorkload,
@@ -46,6 +46,7 @@ import { authenticatedFetch } from '../../lib/api';
 interface ScheduleManagerProps {
   language: AppLanguage;
   currentRole?: UserRole;
+  currentUser?: UserProfile;
   masterSchedule?: ScheduleSlot[];
   onUpdateMasterSchedule?: (newSlots: ScheduleSlot[], workloads?: TeacherWorkload[]) => void;
   onNavigateTab?: (tab: string) => void;
@@ -54,6 +55,7 @@ interface ScheduleManagerProps {
 export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   language,
   currentRole = 'admin',
+  currentUser,
   masterSchedule: propMasterSchedule,
   onUpdateMasterSchedule,
   onNavigateTab,
@@ -81,8 +83,15 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   // Selection filters
   const [selectedClass, setSelectedClass] = useState<string>('7-A');
   const [selectedTeacherName, setSelectedTeacherName] = useState<string>(
-    isTeacher ? 'Aigul Sadykova' : 'Aigul Sadykova'
+    currentUser?.name || workloads[0]?.teacherName || 'O‘qituvchi'
   );
+
+  useEffect(() => {
+    if (currentUser?.name && isTeacher) {
+      setSelectedTeacherName(currentUser.name);
+    }
+  }, [currentUser, isTeacher]);
+
   const [selectedDay, setSelectedDay] = useState<'MON' | 'TUE' | 'WED' | 'THU' | 'FRI'>('MON');
 
   // Generator modal state
@@ -378,8 +387,18 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
   const filteredSlots = getFilteredSlots();
 
   // Calculate teacher personal workload stats
-  const currentTeacherWorkload = workloads.find((w) => w.teacherName.toLowerCase().includes('aigul')) || workloads[0];
-  const teacherTotalSlotsThisWeek = schedule.filter((s) => s.teacherName.toLowerCase().includes('aigul')).length;
+  const currentTeacherWorkload = workloads.find(
+    (w) =>
+      (currentUser?.name && w.teacherName.toLowerCase() === currentUser.name.toLowerCase()) ||
+      (currentUser?.teacherId && w.teacherId === currentUser.teacherId) ||
+      (selectedTeacherName && w.teacherName.toLowerCase() === selectedTeacherName.toLowerCase())
+  ) || workloads[0];
+  const teacherTotalSlotsThisWeek = schedule.filter(
+    (s) =>
+      (currentUser?.name && s.teacherName.toLowerCase() === currentUser.name.toLowerCase()) ||
+      (selectedTeacherName && s.teacherName.toLowerCase() === selectedTeacherName.toLowerCase())
+  ).length;
+  const effectiveTeacherDisplayName = isTeacher ? (currentUser?.name || selectedTeacherName) : selectedTeacherName;
 
   return (
     <div id="schedule-manager-view" className="space-y-6 pb-12">
@@ -408,7 +427,7 @@ export const ScheduleManager: React.FC<ScheduleManagerProps> = ({
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isTeacher
-                  ? (language === 'uz' ? 'O\'qituvchi: Aygul Sadykova • Haftalik yuklama: 20 soat' : 'Teacher: Aigul Sadykova • 20 Weekly Hours Load')
+                  ? (language === 'uz' ? `O'qituvchi: ${effectiveTeacherDisplayName} • Haftalik yuklama: ${currentTeacherWorkload?.targetHoursWeekly || 20} soat` : `Teacher: ${effectiveTeacherDisplayName} • ${currentTeacherWorkload?.targetHoursWeekly || 20} Weekly Hours Load`)
                   : isStudentOrParent
                   ? (language === 'uz' ? 'Ali Nurdinov uchun avtomatik yangilanadigan darslar jadvali' : 'Live synchronized student timetable with classroom & teacher assignments')
                   : (language === 'uz' ? 'O\'qituvchilar haftalik stavka va yuklamasi bo\'yicha avtomatlashtirilgan AI jadvali' : 'AI-Optimized Master Timetable with Zero-Collision Room & Teacher Load Balancing')}

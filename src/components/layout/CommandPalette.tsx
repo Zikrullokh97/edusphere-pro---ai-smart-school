@@ -74,7 +74,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const roleShortcuts: { role: UserRole; title: string }[] = [
     { role: 'admin', title: 'Switch to School Director / Admin' },
-    { role: 'teacher', title: 'Switch to Teacher (Aigul Sadykova)' },
+    { role: 'teacher', title: 'Switch to Teacher Portal' },
     { role: 'parent_student', title: 'Open Parent / Student Portal (Ali Nurdinov)' },
   ];
 

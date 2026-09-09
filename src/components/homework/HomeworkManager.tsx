@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
   Sparkles,
@@ -45,10 +45,38 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
   const isParent = false;
   const effectiveIsStudent = isStudent || currentRole === 'parent_student';
   const [assignments, setAssignments] = useState<HomeworkAssignment[]>(MOCK_HOMEWORKS);
+  const visibleAssignments = useMemo(() => {
+    if (currentRole === 'admin') {
+      return assignments;
+    }
+    if (currentRole === 'teacher' && currentUser) {
+      const tId = currentUser.teacherId || currentUser.id?.replace('usr-', '');
+      const assignedClasses = currentUser.assignedClasses || (currentUser.homeroomClass ? [currentUser.homeroomClass] : []);
+      const subjects = (currentUser.subjectSpecialties || currentUser.subjects || []).map((s) => s.toLowerCase());
+
+      return assignments.filter((a) => {
+        if (a.teacherId && (a.teacherId === currentUser.id || a.teacherId === tId || `usr-${a.teacherId}` === currentUser.id)) {
+          return true;
+        }
+        const classMatch = assignedClasses.length === 0 || assignedClasses.includes(a.className);
+        const subjectMatch = subjects.length === 0 || subjects.includes(a.subject?.toLowerCase());
+        return classMatch && subjectMatch;
+      });
+    }
+    return assignments;
+  }, [assignments, currentRole, currentUser]);
+
   const [selectedAssignment, setSelectedAssignment] = useState<HomeworkAssignment>(MOCK_HOMEWORKS[0]);
   const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(
     MOCK_HOMEWORKS[0]?.submissions[0] || null
   );
+
+  useEffect(() => {
+    if (visibleAssignments.length > 0 && !visibleAssignments.some((a) => a.id === selectedAssignment?.id)) {
+      setSelectedAssignment(visibleAssignments[0]);
+      setSelectedSubmission(visibleAssignments[0].submissions?.[0] || null);
+    }
+  }, [visibleAssignments, selectedAssignment]);
 
   // Quick AI Grade Approval State
   const [approvedSubmissions, setApprovedSubmissions] = useState<Record<string, boolean>>({});
@@ -166,6 +194,7 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
       totalStudents: 28,
       submittedCount: 0,
       submissions: [],
+      teacherId: currentUser?.teacherId || currentUser?.id?.replace('usr-', '') || undefined,
     };
 
     createSchoolData('homework', created).then((saved) => {
@@ -322,7 +351,7 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
         <select
           value={selectedAssignment.id}
           onChange={(e) => {
-            const found = assignments.find((a) => a.id === e.target.value);
+            const found = visibleAssignments.find((a) => a.id === e.target.value);
             if (found) {
               setSelectedAssignment(found);
               setSelectedSubmission(found.submissions[0] || null);
@@ -331,7 +360,7 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
           className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
           style={{ minHeight: '44px' }}
         >
-          {assignments.map((a) => (
+          {visibleAssignments.map((a) => (
             <option key={a.id} value={a.id}>
               {a.className} • {a.title} (Due: {a.dueDate})
             </option>
@@ -346,7 +375,7 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
           <h2 className="text-sm font-bold text-slate-900 dark:text-white">Active Assignments</h2>
 
           <div className="space-y-3">
-            {assignments.map((hw) => {
+            {visibleAssignments.map((hw) => {
               const isSelected = selectedAssignment.id === hw.id;
               return (
                 <div

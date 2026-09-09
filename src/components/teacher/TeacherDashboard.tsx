@@ -119,30 +119,30 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         email: currentUser.email || 'teacher@edusphere.school',
         phone: currentUser.phoneNumber || '+998 90 123 45 67',
         avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-        subject: currentUser.subjectSpecialties?.[0] || currentUser.subjects?.[0] || 'Matematika',
-        subjects: currentUser.subjectSpecialties || currentUser.subjects || ['Matematika'],
+        subject: currentUser.subjectSpecialties?.[0] || currentUser.subjects?.[0] || 'Fan o‘qituvchisi',
+        subjects: currentUser.subjectSpecialties || currentUser.subjects || [],
         role: 'O‘qituvchi',
-        totalLessonsWeekly: currentUser.workloadHours || 20,
+        totalLessonsWeekly: currentUser.workloadHours || 0,
         rating: 5.0,
         room: '101-kabinet',
-        assignedClasses: currentUser.assignedClasses || (currentUser.homeroomClass ? [currentUser.homeroomClass] : ['7-A']),
+        assignedClasses: currentUser.assignedClasses || (currentUser.homeroomClass ? [currentUser.homeroomClass] : []),
         homeroomClass: currentUser.homeroomClass || '',
-        workloadHours: currentUser.workloadHours || 20,
+        workloadHours: currentUser.workloadHours || 0,
       };
     }
     return teachers[0] || MOCK_TEACHERS[0] || {
       id: 'tch-001',
-      name: 'Rahimova Ziyoda',
-      email: 'teacher_1@edusphere.school',
+      name: 'O‘qituvchi',
+      email: 'teacher@edusphere.school',
       phone: '+998 90 111 22 33',
       avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-      subject: 'Algebra',
+      subject: 'Matematika',
       role: 'O‘qituvchi',
       totalLessonsWeekly: 20,
       rating: 5.0,
       room: '101-kabinet',
-      assignedClasses: ['5-A'],
-      subjects: ['Algebra'],
+      assignedClasses: [],
+      subjects: ['Matematika'],
       workloadHours: 20,
     };
   }, [teachers, currentUser]);
@@ -154,7 +154,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     if (teacher.homeroomClass) {
       return [teacher.homeroomClass];
     }
-    return ['7-A', '8-A'];
+    return [];
   }, [teacher]);
 
   // Live Database State
@@ -254,13 +254,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Derive Today's Lessons for this Teacher with AI-resolved KTP Topics
   const teacherSpecificSlots = useMemo(() => {
-    const rawSlots = masterSchedule.filter(
-      (s) =>
-        (s.day === todayDayCode || s.day === 'MON' || s.day === todayFormatted.dayName) &&
-        (s.teacherId === teacher.id ||
-          (s.teacherName && s.teacherName.toLowerCase().includes(teacher.name.toLowerCase().split(' ')[0])) ||
-          assignedClassesList.includes(s.className))
-    );
+    const rawSlots = masterSchedule.filter((s) => {
+      const isTeacherMatch =
+        s.teacherId === teacher.id ||
+        s.teacherId === `usr-${teacher.id}` ||
+        `usr-${s.teacherId}` === teacher.id ||
+        (Boolean(s.teacherName && teacher.name) && s.teacherName.trim().toLowerCase() === teacher.name.trim().toLowerCase());
+      return (s.day === todayDayCode || s.day === 'MON' || s.day === todayFormatted.dayName) && isTeacherMatch;
+    });
 
     const seen = new Set<string>();
     const uniqueSlots: ScheduleSlot[] = [];
@@ -274,7 +275,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     });
 
     return uniqueSlots.sort((a, b) => a.period - b.period);
-  }, [masterSchedule, teacher, todayDayCode, todayFormatted.dayName, assignedClassesList]);
+  }, [masterSchedule, teacher, todayDayCode, todayFormatted.dayName]);
 
   // Whole-School Timetable Slots for Today (Strictly Read-Only)
   const wholeSchoolTodaySlots = useMemo(() => {

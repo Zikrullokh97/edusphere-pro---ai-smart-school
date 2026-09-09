@@ -147,7 +147,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
   const roles: { role: UserRole; title: string; desc: string }[] = [
     { role: 'admin', title: 'Admin / Director', desc: 'Full School Management' },
-    { role: 'teacher', title: 'Teacher (Aigul S.)', desc: 'Classroom, Attendance, AI' },
+    { role: 'teacher', title: 'Teacher Portal', desc: 'Classroom, Attendance, AI' },
     { role: 'parent_student', title: 'Parent / Student', desc: 'Profile, Progress, AI Tutor, Homework' },
   ];
 

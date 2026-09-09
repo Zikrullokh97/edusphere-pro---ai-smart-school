@@ -369,7 +369,7 @@ async function authenticateUser(req: AuthenticatedRequest, res: Response, next: 
 
     if (rawToken.startsWith("dev-token-")) {
       const targetUid = rawToken.replace("dev-token-", "");
-      const matchedUser = (localDbStore.users || []).find(
+      let matchedUser = (localDbStore.users || []).find(
         (u: any) =>
           u.uid === targetUid ||
           u.id === targetUid ||
@@ -377,6 +377,22 @@ async function authenticateUser(req: AuthenticatedRequest, res: Response, next: 
           u.uid === `usr-${targetUid}` ||
           (u.email && u.email.toLowerCase() === targetUid.toLowerCase())
       );
+      if (!matchedUser && targetUid.startsWith("usr-student-")) {
+        const sequence = targetUid.replace("usr-student-", "");
+        const studentNumber = Number.parseInt(sequence, 10);
+        const studentId = Number.isInteger(studentNumber) ? `stu-${String(studentNumber).padStart(4, "0")}` : "";
+        const student = (localDbStore.students || []).find((item: any) => item.id === studentId || item.studentId === studentId);
+        if (student) {
+          matchedUser = {
+            uid: targetUid,
+            displayName: student.name || student.displayName || "Student",
+            role: "PARENT_STUDENT",
+            schoolId: student.schoolId || SCHOOL_ID,
+            studentId: student.id || student.studentId,
+            childrenIds: [],
+          };
+        }
+      }
       if (matchedUser) {
         const role = normalizeRole(matchedUser.role) || "TEACHER";
         req.user = {
@@ -401,16 +417,19 @@ async function authenticateUser(req: AuthenticatedRequest, res: Response, next: 
       const matchedUser = teacherId
         ? (localDbStore.users || []).find((u: any) => u.teacherId === teacherId || u.uid === `usr-${teacherId}` || u.uid === teacherId)
         : null;
+      if (!matchedUser) {
+        return res.status(401).json({ error: "Unknown teacher token" });
+      }
       req.user = {
-        uid: matchedUser?.uid || "usr-teacher-1",
+        uid: matchedUser.uid,
         role: "TEACHER",
-        schoolId: matchedUser?.schoolId || SCHOOL_ID,
-        displayName: matchedUser?.displayName || "O‘qituvchi",
-        teacherId: matchedUser?.teacherId || teacherId || "tch-001",
-        homeroomClass: matchedUser?.homeroomClass,
-        assignedClasses: matchedUser?.assignedClasses || ["7-A", "7-B"],
-        subjectSpecialties: matchedUser?.subjectSpecialties || matchedUser?.subjects || ["Matematika"],
-        workloadHours: matchedUser?.workloadHours || 20,
+        schoolId: matchedUser.schoolId || SCHOOL_ID,
+        displayName: matchedUser.displayName,
+        teacherId: matchedUser.teacherId,
+        homeroomClass: matchedUser.homeroomClass,
+        assignedClasses: matchedUser.assignedClasses || [],
+        subjectSpecialties: matchedUser.subjectSpecialties || matchedUser.subjects || [],
+        workloadHours: matchedUser.workloadHours || 20,
       };
       return next();
     }
@@ -443,8 +462,7 @@ async function authenticateUser(req: AuthenticatedRequest, res: Response, next: 
         };
         return next();
       }
-      req.user = { uid: "usr-admin", role: "ADMIN", schoolId: SCHOOL_ID, displayName: "Maktab Administratori" };
-      return next();
+      return res.status(401).json({ error: "Invalid authentication token" });
     }
   }
 
@@ -495,6 +513,51 @@ function authorizeSchool(req: AuthenticatedRequest, res: Response, next: NextFun
       }
   }
   return next();
+}
+
+function userIdentityKeys(user: AuthenticatedRequest["user"]): string[] {
+  if (!user) return [];
+  return [user.uid, user.teacherId].filter((value): value is string => Boolean(value));
+}
+
+function teacherOwnsClass(user: AuthenticatedRequest["user"], className: unknown): boolean {
+  if (!user || user.role !== "TEACHER" || typeof className !== "string") return false;
+  return Boolean(user.assignedClasses?.includes(className));
+}
+
+function teacherOwnsResource(user: AuthenticatedRequest["user"], resource: any): boolean {
+  if (!user || user.role !== "TEACHER" || !resource) return false;
+  const identityMatch = userIdentityKeys(user).includes(String(resource.teacherId || resource.createdBy || resource.ownerId || ""));
+  const className = resource.className || resource.grade || resource.class;
+  return identityMatch || teacherOwnsClass(user, className);
+}
+
+function filterForAuthenticatedUser(collection: string, items: any[], user: AuthenticatedRequest["user"]): any[] {
+  if (!user || user.role === "ADMIN") return items;
+
+  if (user.role === "PARENT_STUDENT") {
+    const allowedIds = [user.uid, user.studentId, ...(user.childrenIds || [])].filter(Boolean);
+    if (["students"].includes(collection)) return items.filter((item) => allowedIds.includes(item.id) || allowedIds.includes(item.studentId));
+    if (["grades", "attendance", "submissions"].includes(collection)) return items.filter((item) => allowedIds.includes(item.studentId));
+    if (collection === "notifications") return items.filter((item) => item.userId === user.uid);
+    return items;
+  }
+
+  if (user.role !== "TEACHER") return [];
+  if (collection === "teachers") return items.filter((item) => userIdentityKeys(user).includes(String(item.id || item.teacherId || item.uid || "")));
+  if (collection === "classes") return items.filter((item) => teacherOwnsClass(user, item.name));
+  if (["students", "classes", "schedules", "schedule"].includes(collection)) {
+    return items.filter((item) => teacherOwnsResource(user, item));
+  }
+  if (["attendance", "grades", "homework", "lesson_sessions", "journals", "ktp_documents", "ktp", "documents", "announcements"].includes(collection)) {
+    return items.filter((item) => teacherOwnsResource(user, item));
+  }
+  return items;
+}
+
+function assertTeacherResourceAccess(user: AuthenticatedRequest["user"], payload: any): boolean {
+  if (!user || user.role !== "TEACHER") return true;
+  return teacherOwnsResource(user, payload);
 }
 
 function isNonEmptyString(value: unknown, maxLength: number): value is string {
@@ -1268,7 +1331,7 @@ async function startServer() {
         id,
         schoolId: SCHOOL_ID,
         teacherId: req.user!.uid,
-        teacherName: req.user!.role === "TEACHER" ? (req.user as any).name || "Aigul Sadykova" : "Admin",
+        teacherName: req.user!.role === "TEACHER" ? ((req.user as any).displayName || (req.user as any).name || "O‘qituvchi") : "Admin",
         className,
         subject,
         academicYear,
@@ -1311,6 +1374,9 @@ async function startServer() {
       if (!currentDoc) {
         return res.status(404).json({ error: "KTP document not found" });
       }
+      if (!assertTeacherResourceAccess(req.user, currentDoc)) {
+        return res.status(403).json({ error: "KTP document is not assigned to teacher" });
+      }
 
       const updated = {
         ...currentDoc,
@@ -1344,13 +1410,20 @@ async function startServer() {
     const subject = String(req.query.subject || "Matematika");
     const language = (req.query.language as any) || "uz";
 
+    if (req.user!.role === "TEACHER" && !teacherOwnsClass(req.user, className)) {
+      return res.status(403).json({ error: "Class is not assigned to teacher" });
+    }
+
     try {
       const [ktpDocs, sessions] = await Promise.all([
         getLiveCollectionItems("ktp_documents"),
         getLiveCollectionItems("lesson_sessions"),
       ]);
 
-      const classSessions = sessions.filter(
+      const scopedKtpDocs = filterForAuthenticatedUser("ktp_documents", ktpDocs, req.user);
+      const scopedSessions = filterForAuthenticatedUser("lesson_sessions", sessions, req.user);
+
+      const classSessions = scopedSessions.filter(
         (s: any) =>
           s.className?.toLowerCase().trim() === className.toLowerCase().trim() &&
           (s.subject?.toLowerCase().trim() === subject.toLowerCase().trim() ||
@@ -1366,7 +1439,7 @@ async function startServer() {
       const resolved = resolveNextLessonContext({
         className,
         subject,
-        ktpDocs,
+        ktpDocs: scopedKtpDocs,
         completedLessonNumbers,
         language,
       });
@@ -1386,9 +1459,7 @@ async function startServer() {
   app.get("/api/lesson-sessions", authorizeRole("ADMIN", "TEACHER", "PARENT_STUDENT"), async (req: AuthenticatedRequest, res: Response) => {
     try {
       let items = await getLiveCollectionItems("lesson_sessions");
-      if (req.user!.role === "TEACHER") {
-        items = items.filter((s: any) => s.teacherId === req.user!.uid);
-      }
+      items = filterForAuthenticatedUser("lesson_sessions", items, req.user);
       return res.json({ items });
     } catch (error) {
       console.error("Lesson sessions error:", error);
@@ -1446,7 +1517,7 @@ async function startServer() {
         id,
         schoolId: SCHOOL_ID,
         teacherId: req.user!.uid,
-        teacherName: (req.user as any).name || "Aigul Sadykova",
+        teacherName: (req.user as any).displayName || (req.user as any).name || "O‘qituvchi",
         className,
         subject,
         academicYear,
@@ -1467,6 +1538,22 @@ async function startServer() {
         updatedAt: now,
         createdAt: now,
       };
+
+      if (req.user!.role === "TEACHER") {
+        const studentsInClass = new Set((localDbStore.students || [])
+          .filter((student: any) => student.grade === className || student.classId === className)
+          .map((student: any) => student.id));
+        const submittedStudentIds = [
+          ...(attendance.present || []),
+          ...(attendance.absent || []),
+          ...(attendance.late || []),
+          ...(attendance.excused || []),
+          ...Object.keys(grades || {}),
+        ];
+        if (submittedStudentIds.some((studentId: string) => !studentsInClass.has(studentId))) {
+          return res.status(403).json({ error: "Attendance or grade includes a student outside the assigned class" });
+        }
+      }
 
       if (!localDbStore.lesson_sessions) localDbStore.lesson_sessions = [];
       const sIdx = localDbStore.lesson_sessions.findIndex((s) => s.id === id);
@@ -1610,9 +1697,17 @@ async function startServer() {
         const studentClasses = new Set(enrolledStudents.map((s) => s.grade || s.classId).filter(Boolean));
         items = items.filter((h: any) => studentClasses.has(h.className) || studentClasses.has(h.classId));
       } else if (user.role === "TEACHER") {
-        if (user.assignedClasses?.length) {
-          items = items.filter((h: any) => user.assignedClasses!.includes(h.className) || h.teacherId === user.uid);
-        }
+        const teacherId = user.teacherId || user.uid.replace("usr-", "");
+        const assignedClasses = user.assignedClasses || [];
+        const subjects = (user.subjectSpecialties || []).map((s: string) => s.toLowerCase());
+        items = items.filter((h: any) => {
+          if (h.teacherId && (h.teacherId === user.uid || h.teacherId === teacherId || `usr-${h.teacherId}` === user.uid)) {
+            return true;
+          }
+          const classMatch = assignedClasses.length > 0 && assignedClasses.includes(h.className);
+          const subjectMatch = subjects.length === 0 || subjects.includes(h.subject?.toLowerCase());
+          return classMatch && subjectMatch;
+        });
       }
 
       return res.json({ items });
@@ -2731,21 +2826,21 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
           t.id === teacherId ||
           t.id === req.user!.uid ||
           `usr-${t.id}` === req.user!.uid ||
-          (t.name && req.user!.displayName && t.name.toLowerCase() === req.user!.displayName.toLowerCase())
+          (t.name && req.user!.displayName && t.name.trim().toLowerCase() === req.user!.displayName.trim().toLowerCase())
       ) || {};
 
       const teacherName = matchedTeacher.name || req.user.displayName || "O‘qituvchi";
-      const assignedClasses = matchedTeacher.assignedClasses || req.user.assignedClasses || (matchedTeacher.homeroomClass ? [matchedTeacher.homeroomClass] : ["7-A"]);
-      const subjectSpecialties = matchedTeacher.subjects || req.user.subjectSpecialties || ["Matematika"];
-      const workloadHours = matchedTeacher.workloadHours || req.user.workloadHours || 20;
+      const assignedClasses = matchedTeacher.assignedClasses || req.user.assignedClasses || (matchedTeacher.homeroomClass ? [matchedTeacher.homeroomClass] : []);
+      const subjectSpecialties = matchedTeacher.subjects || req.user.subjectSpecialties || [];
+      const workloadHours = matchedTeacher.workloadHours || req.user.workloadHours || 0;
       const homeroomClass = matchedTeacher.homeroomClass || req.user.homeroomClass || null;
 
-      // Filter today's schedule for this teacher
+      // Filter today's schedule for this teacher strictly
       const teacherSlots = schedules.filter((s: any) => 
         s.teacherId === teacherId ||
         s.teacherId === req.user!.uid ||
-        (s.teacherName && s.teacherName.toLowerCase().includes(teacherName.toLowerCase().split(" ")[0])) ||
-        (s.className && assignedClasses.includes(s.className))
+        `usr-${s.teacherId}` === req.user!.uid ||
+        (s.teacherName && teacherName && s.teacherName.trim().toLowerCase() === teacherName.trim().toLowerCase())
       );
 
       const todayLessonsCount = teacherSlots.length;
@@ -2805,9 +2900,9 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
       const teacherName = req.user.displayName || "";
       const assignedClasses = req.user.assignedClasses || [];
 
-      if (isAllClasses) {
+      if (isAllClasses && req.user.role === "ADMIN") {
         return res.json({
-          isReadOnly: req.user.role === "TEACHER",
+          isReadOnly: false,
           slots: allSchedules,
           totalSlots: allSchedules.length,
         });
@@ -2816,8 +2911,8 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
       const teacherSlots = allSchedules.filter((s: any) =>
         s.teacherId === teacherId ||
         s.teacherId === req.user!.uid ||
-        (s.teacherName && teacherName && s.teacherName.toLowerCase().includes(teacherName.toLowerCase().split(" ")[0])) ||
-        (s.className && assignedClasses.includes(s.className))
+        `usr-${s.teacherId}` === req.user!.uid ||
+        (s.teacherName && teacherName && s.teacherName.trim().toLowerCase() === teacherName.trim().toLowerCase())
       );
 
       return res.json({
@@ -2917,12 +3012,18 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
     if (!req.user || !isNonEmptyString(lessonId, 128) || !isNonEmptyString(className, 64)) {
       return res.status(400).json({ error: "Invalid lesson finish parameters" });
     }
+    if (req.user.role === "TEACHER" && !teacherOwnsClass(req.user, className)) {
+      return res.status(403).json({ error: "Teacher is not assigned to this class" });
+    }
 
     try {
       const now = new Date();
       const finishedAt = now.toISOString();
       const sessions = localDbStore.lesson_sessions || [];
       const sessionData = sessions.find((s: any) => s.id === lessonId) || {};
+      if (sessionData.id && !assertTeacherResourceAccess(req.user, sessionData)) {
+        return res.status(403).json({ error: "Lesson session is not assigned to teacher" });
+      }
       
       // Calculate duration
       let durationMinutes = 45;
@@ -3494,6 +3595,11 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
 
       let records = await getLiveCollectionItems("attendance");
 
+      if (user.role === "TEACHER" && className && !teacherOwnsClass(user, className)) {
+        return res.status(403).json({ error: "Teacher is not assigned to this class" });
+      }
+      records = filterForAuthenticatedUser("attendance", records, user);
+
       if (className) records = records.filter((r: any) => r.className === className);
       if (date) records = records.filter((r: any) => r.date === date);
       if (studentId) records = records.filter((r: any) => r.studentId === studentId);
@@ -3503,10 +3609,6 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
       if (user.role === "PARENT_STUDENT") {
         const allowedIds = [user.uid, user.studentId, ...(user.childrenIds || [])].filter(Boolean);
         records = records.filter((r: any) => allowedIds.includes(r.studentId));
-      } else if (user.role === "TEACHER" && user.assignedClasses && user.assignedClasses.length > 0) {
-        if (!className) {
-          records = records.filter((r: any) => user.assignedClasses!.includes(r.className));
-        }
       }
 
       // Date range filtering
@@ -3533,6 +3635,11 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
       const { className, startDate, endDate } = req.query as Record<string, string>;
 
       let records = await getLiveCollectionItems("attendance");
+
+      if (user.role === "TEACHER" && className && !teacherOwnsClass(user, className)) {
+        return res.status(403).json({ error: "Teacher is not assigned to this class" });
+      }
+      records = filterForAuthenticatedUser("attendance", records, user);
 
       if (className) records = records.filter((r: any) => r.className === className);
       if (startDate) records = records.filter((r: any) => r.date >= startDate);
@@ -3591,10 +3698,17 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
       const now = new Date().toISOString();
       const processed: Array<Record<string, unknown>> = [];
 
+      const studentsInClass = new Set((localDbStore.students || [])
+        .filter((student: any) => student.grade === className || student.classId === className)
+        .map((student: any) => student.id));
+
       if (!localDbStore.attendance) localDbStore.attendance = [];
 
       for (const entry of entries) {
         if (!entry.studentId || typeof entry.studentId !== "string") continue;
+        if (req.user!.role === "TEACHER" && !studentsInClass.has(entry.studentId)) {
+          return res.status(403).json({ error: "Attendance includes a student outside the assigned class" });
+        }
         const normalizedStatus = (entry.status || "present").toLowerCase();
         if (!["present", "absent", "late", "excused"].includes(normalizedStatus)) continue;
 
@@ -3776,6 +3890,7 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
     try {
       const user = req.user!;
       let items = await getLiveCollectionItems(collection);
+      items = filterForAuthenticatedUser(collection, items, user);
 
       // Privacy & Security Hardening: Strip raw 512-d biometric vectors from standard public student lists
       if (collection === "students") {
@@ -3813,11 +3928,24 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
     }
 
     const user = req.user!;
-    if ((collection === "students" || collection === "teachers" || collection === "classes" || collection === "subjects") && user.role !== "ADMIN") {
+    if ((collection === "teachers" || collection === "classes" || collection === "subjects") && user.role !== "ADMIN") {
       return res.status(403).json({ error: "Only administrators can create school entities" });
     }
 
-    const payload = req.body || {};
+    const payload = { ...(req.body || {}) };
+
+    if (user.role === "TEACHER") {
+      const teacherWritableCollections = new Set(["students", "schedules", "schedule", "attendance", "grades", "homework", "lesson_sessions", "journals", "ktp_documents", "documents", "announcements"]);
+      if (!teacherWritableCollections.has(collection)) {
+        return res.status(403).json({ error: "Teacher-owned resource required" });
+      }
+      const className = payload.className || payload.grade || payload.class;
+      if (!teacherOwnsClass(user, className)) {
+        return res.status(403).json({ error: "Class is not assigned to teacher" });
+      }
+      payload.teacherId = user.teacherId || user.uid;
+      payload.createdBy = user.uid;
+    }
 
     // 1. Student Validations & Capacity Check
     if (collection === "students") {
@@ -3955,7 +4083,7 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
     }
 
     const user = req.user!;
-    if ((collection === "students" || collection === "teachers" || collection === "classes" || collection === "subjects") && user.role !== "ADMIN") {
+    if ((collection === "teachers" || collection === "classes" || collection === "subjects") && user.role !== "ADMIN") {
       return res.status(403).json({ error: "Only administrators can update school entities" });
     }
 
@@ -3977,7 +4105,19 @@ Generate a Director AI Executive Summary and 3 high-impact strategic insights (w
         return res.status(404).json({ error: "Document not found" });
       }
 
-      const patch = req.body || {};
+      if (!assertTeacherResourceAccess(user, existingData)) {
+        return res.status(403).json({ error: "Resource is not assigned to teacher" });
+      }
+
+      const patch = { ...(req.body || {}) };
+      if (user.role === "TEACHER") {
+        const className = patch.className || patch.grade || patch.class || existingData.className || existingData.grade;
+        if (!teacherOwnsClass(user, className)) {
+          return res.status(403).json({ error: "Class is not assigned to teacher" });
+        }
+        patch.teacherId = existingData.teacherId || user.teacherId || user.uid;
+        patch.createdBy = existingData.createdBy || user.uid;
+      }
       const updated = {
         ...existingData,
         ...patch,

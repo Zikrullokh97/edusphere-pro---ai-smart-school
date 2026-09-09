@@ -100,30 +100,30 @@ export const ElectronicJournal: React.FC<ElectronicJournalProps> = ({
         email: currentUser.email || 'teacher@edusphere.school',
         phone: currentUser.phoneNumber || '+998 90 123 45 67',
         avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-        subject: currentUser.subjectSpecialties?.[0] || currentUser.subjects?.[0] || 'Matematika',
-        subjects: currentUser.subjectSpecialties || currentUser.subjects || ['Matematika'],
+        subject: currentUser.subjectSpecialties?.[0] || currentUser.subjects?.[0] || 'Fan o‘qituvchisi',
+        subjects: currentUser.subjectSpecialties || currentUser.subjects || [],
         role: 'O‘qituvchi',
-        totalLessonsWeekly: currentUser.workloadHours || 20,
+        totalLessonsWeekly: currentUser.workloadHours || 0,
         rating: 5.0,
         room: '101-kabinet',
-        assignedClasses: currentUser.assignedClasses || (currentUser.homeroomClass ? [currentUser.homeroomClass] : ['7-A']),
+        assignedClasses: currentUser.assignedClasses || (currentUser.homeroomClass ? [currentUser.homeroomClass] : []),
         homeroomClass: currentUser.homeroomClass || '',
-        workloadHours: currentUser.workloadHours || 20,
+        workloadHours: currentUser.workloadHours || 0,
       };
     }
     return teachers[0] || MOCK_TEACHERS[0] || {
       id: 'tch-001',
-      name: 'Rahimova Ziyoda',
-      email: 'teacher_1@edusphere.school',
+      name: 'O‘qituvchi',
+      email: 'teacher@edusphere.school',
       phone: '+998 90 111 22 33',
       avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-      subject: 'Algebra',
+      subject: 'Matematika',
       role: 'O‘qituvchi',
       totalLessonsWeekly: 20,
       rating: 5.0,
       room: '101-kabinet',
-      assignedClasses: ['5-A'],
-      subjects: ['Algebra'],
+      assignedClasses: [],
+      subjects: ['Matematika'],
       workloadHours: 20,
     };
   }, [teachers, currentUser]);
@@ -161,12 +161,15 @@ export const ElectronicJournal: React.FC<ElectronicJournalProps> = ({
   }, []);
 
   const todaySlots = useMemo(() => {
-    // 1. Filter slots by today's day (or MON fallback) and teacher
-    const rawSlots = masterSchedule.filter(
-      (s) => (s.day === todayDayCode || s.day === 'MON' || s.day === todayWeekday) &&
-             (s.teacherName.toLowerCase().includes(currentTeacher.name.toLowerCase().split(' ')[0]) ||
-              currentTeacher.assignedClasses.includes(s.className))
-    );
+    // 1. Filter slots strictly by today's day and teacher identity
+    const rawSlots = masterSchedule.filter((s) => {
+      const isTeacherMatch =
+        s.teacherId === currentTeacher.id ||
+        s.teacherId === `usr-${currentTeacher.id}` ||
+        `usr-${s.teacherId}` === currentTeacher.id ||
+        (Boolean(s.teacherName && currentTeacher.name) && s.teacherName.trim().toLowerCase() === currentTeacher.name.trim().toLowerCase());
+      return (s.day === todayDayCode || s.day === 'MON' || s.day === todayWeekday) && isTeacherMatch;
+    });
 
     // 2. Deduplicate strictly by unique key (period + className + subject)
     const seen = new Set<string>();
@@ -180,21 +183,23 @@ export const ElectronicJournal: React.FC<ElectronicJournalProps> = ({
       }
     });
 
-    return uniqueSlots.length > 0
-      ? uniqueSlots.sort((a, b) => a.period - b.period)
-      : [
-          { id: 'slot-1', day: 'Dushanba', period: 1, time: '08:30 - 09:15', className: '7-A', subject: 'Mathematics', room: '304', teacherName: currentTeacher.name },
-          { id: 'slot-2', day: 'Dushanba', period: 2, time: '09:25 - 10:10', className: '8-B', subject: 'Algebra', room: '304', teacherName: currentTeacher.name },
-          { id: 'slot-3', day: 'Dushanba', period: 3, time: '10:20 - 11:05', className: '9-A', subject: 'Geometry', room: '304', teacherName: currentTeacher.name },
-        ];
+    if (uniqueSlots.length > 0) {
+      return uniqueSlots.sort((a, b) => a.period - b.period);
+    }
+
+    const defaultClass = currentTeacher.assignedClasses?.[0] || currentTeacher.homeroomClass || '7-A';
+    const defaultSubject = currentTeacher.subject || currentTeacher.subjects?.[0] || 'Matematika';
+    return [
+      { id: 'slot-1', day: todayWeekday, period: 1, time: '08:30 - 09:15', className: defaultClass, subject: defaultSubject, room: '304', teacherName: currentTeacher.name },
+    ];
   }, [masterSchedule, currentTeacher, todayDayCode, todayWeekday]);
 
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(0);
   const activeSlot = todaySlots[selectedSlotIndex] || todaySlots[0];
 
   // 3. Active Lesson Context & AI Resolved KTP Engine
-  const [className, setClassName] = useState(activeSlot.className || '7-A');
-  const [subject, setSubject] = useState(activeSlot.subject || 'Mathematics');
+  const [className, setClassName] = useState(initialClass || activeSlot.className || currentTeacher.assignedClasses?.[0] || '7-A');
+  const [subject, setSubject] = useState(initialSubject || activeSlot.subject || currentTeacher.subject || 'Matematika');
   const [date, setDate] = useState(todayStr);
   const [completedLessonNumbers, setCompletedLessonNumbers] = useState<number[]>([1, 2, 3]);
   const [lessonNumber, setLessonNumber] = useState(4);

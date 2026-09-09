@@ -31,7 +31,7 @@ import {
   ArrowRightLeft,
   Trash2,
 } from 'lucide-react';
-import { AppLanguage, StudentRecord, TeacherRecord, UserRole } from '../../types';
+import { AppLanguage, StudentRecord, TeacherRecord, UserRole, UserProfile } from '../../types';
 import { useI18n } from '../../lib/i18n';
 import { MOCK_STUDENTS, MOCK_TEACHERS } from '../../data/mockData';
 import { listSchoolData, createSchoolData, updateSchoolData, archiveSchoolData } from '../../lib/schoolRepository';
@@ -46,6 +46,7 @@ interface StudentsDirectoryProps {
   currentRole?: UserRole;
   teachers?: TeacherRecord[];
   activeTeacherId?: string;
+  currentUser?: UserProfile;
   onNavigateTab?: (tabId: string) => void;
 }
 
@@ -70,10 +71,11 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
   currentRole = 'admin',
   teachers = MOCK_TEACHERS,
   activeTeacherId,
+  currentUser,
   onNavigateTab,
 }) => {
   const t = useI18n(language);
-  const [schoolStudents, setSchoolStudents] = useState<StudentRecord[]>(MOCK_STUDENTS);
+  const [schoolStudents, setSchoolStudents] = useState<StudentRecord[]>(() => sortStudentsNaturally(MOCK_STUDENTS));
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -95,8 +97,37 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
   }, []);
 
   const currentTeacher = useMemo(() => {
-    return teachers.find((t) => t.id === activeTeacherId) || teachers[0];
-  }, [teachers, activeTeacherId]);
+    if (activeTeacherId) {
+      return teachers.find((t) => t.id === activeTeacherId || `usr-${t.id}` === activeTeacherId);
+    }
+    if (currentUser && currentRole === 'teacher') {
+      return (
+        teachers.find(
+          (t) =>
+            (currentUser.email && t.email?.toLowerCase() === currentUser.email.toLowerCase()) ||
+            (currentUser.id && (t.id === currentUser.id || `usr-${t.id}` === currentUser.id)) ||
+            (currentUser.teacherId && t.id === currentUser.teacherId) ||
+            (currentUser.name && t.name.toLowerCase() === currentUser.name.toLowerCase())
+        ) || {
+          id: currentUser.teacherId || currentUser.id?.replace('usr-', '') || '',
+          name: currentUser.name || 'O‘qituvchi',
+          email: currentUser.email || '',
+          phone: currentUser.phoneNumber || '',
+          avatar: currentUser.avatar || '',
+          subject: currentUser.subjectSpecialties?.[0] || 'Fan',
+          subjects: currentUser.subjectSpecialties || [],
+          role: 'O‘qituvchi',
+          totalLessonsWeekly: currentUser.workloadHours || 0,
+          rating: 5.0,
+          room: '101-kabinet',
+          assignedClasses: currentUser.assignedClasses || (currentUser.homeroomClass ? [currentUser.homeroomClass] : []),
+          homeroomClass: currentUser.homeroomClass || '',
+          workloadHours: currentUser.workloadHours || 0,
+        }
+      );
+    }
+    return undefined;
+  }, [teachers, activeTeacherId, currentUser, currentRole]);
 
   // Filters state
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
@@ -140,9 +171,13 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
     if (currentRole === 'admin') {
       return schoolStudents;
     }
-    // For teacher: filter to assigned classes
-    if (currentTeacher?.assignedClasses && currentTeacher.assignedClasses.length > 0) {
-      return schoolStudents.filter((s) => currentTeacher.assignedClasses.includes(s.grade));
+    // For teacher: strictly filter to assigned classes
+    if (currentRole === 'teacher') {
+      const allowedClasses = currentTeacher?.assignedClasses || (currentTeacher?.homeroomClass ? [currentTeacher.homeroomClass] : []);
+      if (allowedClasses.length > 0) {
+        return schoolStudents.filter((s) => allowedClasses.includes(s.grade));
+      }
+      return [];
     }
     return schoolStudents;
   }, [currentRole, schoolStudents, currentTeacher]);

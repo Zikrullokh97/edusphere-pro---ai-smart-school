@@ -537,6 +537,7 @@ export default function App() {
             <ScheduleManager
               language={language}
               currentRole={currentRole}
+              currentUser={currentUser}
               masterSchedule={masterSchedule}
               onUpdateMasterSchedule={(newSlots, updatedWorkloads) => {
                 setMasterSchedule(newSlots);
@@ -581,6 +582,7 @@ export default function App() {
               language={language}
               currentRole={currentRole}
               teachers={teachers}
+              currentUser={currentUser}
               onNavigateTab={handleSelectTab}
             />
           )}
