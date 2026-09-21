@@ -21,6 +21,10 @@
     "src/lib/production/errors.ts",
     "src/lib/production/types.ts",
     "src/lib/production/store.ts",
-    "src/lib/production/rbac.ts"
+    "src/lib/production/rbac.ts",
+    "src/lib/production/query.ts",
+    "src/lib/production/audit.ts",
+    "src/lib/production/schoolDataService.ts",
+    "src/lib/production/syncService.ts"
   ]
 }
