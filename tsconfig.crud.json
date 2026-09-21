@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "allowJs": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src/lib/adminTeachersRepository.ts",
+    "src/lib/adminStudentsRepository.ts",
+    "src/lib/adminClassesRepository.ts",
+    "src/lib/gradesRepository.ts",
+    "src/lib/attendanceRepository.ts",
+    "src/lib/index.ts",
+    "src/lib/production/errors.ts",
+    "src/lib/production/types.ts",
+    "src/lib/production/store.ts",
+    "src/lib/production/rbac.ts"
+  ]
+}
