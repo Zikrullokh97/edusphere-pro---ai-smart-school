@@ -1,3 +1,4 @@
+import type { ClassGroup, CreateClassWithScheduleInput, ScheduleSlot } from '../types';
 import { authenticatedFetch } from './api';
 
 export async function listSchoolData<T>(collection: string): Promise<T[]> {
@@ -31,6 +32,21 @@ export async function updateSchoolData<T extends { id: string; version?: number 
 export async function archiveSchoolData(collection: string, id: string): Promise<void> {
   const response = await authenticatedFetch(`/api/data/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) throw new Error(`Unable to archive ${collection}`);
+}
+
+export async function createClassWithSchedule(input: CreateClassWithScheduleInput): Promise<{
+  class: ClassGroup;
+  schedules: ScheduleSlot[];
+}> {
+  const response = await authenticatedFetch('/api/classes/with-schedule', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error || 'Unable to create class and weekly schedule');
+  }
+  return response.json();
 }
 
 export async function updateTeacherWorkload(teacherId: string, payload: Record<string, any>): Promise<any> {
@@ -67,4 +83,4 @@ export async function setHomeroomTeacher(classId: string, teacherId: string): Pr
   });
   if (!response.ok) throw new Error('Unable to set homeroom teacher');
   return response.json();
-}
+}

@@ -30,7 +30,7 @@ import {
   removeTeacherFromSubject,
 } from '../../lib/schoolRepository';
 import { KAO_CURRICULUM_SUBJECTS, KAOSubjectDefinition } from '../../lib/kyrgyzstanEdu';
-import { MOCK_TEACHERS } from '../../data/mockData';
+
 
 interface SubjectsDirectoryProps {
   language: AppLanguage;
@@ -106,7 +106,7 @@ export const SubjectsDirectory: React.FC<SubjectsDirectoryProps> = ({
 }) => {
   const t = useI18n(language);
   const [subjects, setSubjects] = useState<ExtendedSubject[]>(DEFAULT_SUBJECTS);
-  const [teachersList, setTeachersList] = useState<TeacherRecord[]>(propTeachers || MOCK_TEACHERS);
+  const [teachersList, setTeachersList] = useState<TeacherRecord[]>(propTeachers || []);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');

@@ -12,6 +12,7 @@ import {
   VideoOff,
 } from 'lucide-react';
 import { authenticatedFetch } from '../../lib/api';
+import { checkLiveness, createBiometricConsent, extractFaceEmbedding, enrollStudentFace } from '../../lib/biometric';
 import type {
   StudentFaceEnrollModalProps,
   FaceExtractionResult,
@@ -33,6 +34,8 @@ export const StudentFaceEnrollModal: React.FC<StudentFaceEnrollModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [extractionResult, setExtractionResult] = useState<FaceExtractionResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [livenessResult, setLivenessResult] = useState<{ passed: boolean; livenessScore: number; qualityScore: number } | null>(null);
+  const [consentGranted, setConsentGranted] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -93,23 +96,25 @@ export const StudentFaceEnrollModal: React.FC<StudentFaceEnrollModalProps> = ({
     setExtractionResult(null);
 
     try {
-      const response = await authenticatedFetch('/api/students/extract-face-embedding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64Image }),
-      });
+      const [data, live] = await Promise.all([
+        extractFaceEmbedding(base64Image),
+        checkLiveness(base64Image),
+      ]);
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Yuz aniqlanmadi yoki sifati yetarli emas.');
+      if (!live.passed || !data.livenessPassed) {
+        throw new Error('Liveness tekshiruvi muvaffaqiyatsiz. Kameraga qarab, yuzni to‘liq va yorug‘ holda ko‘rsating.');
       }
 
+      setLivenessResult({
+        passed: live.passed,
+        livenessScore: live.livenessScore,
+        qualityScore: live.qualityScore,
+      });
+
       setExtractionResult({
-        embedding: data.embedding,
-        confidence: data.confidence,
-        faceDetected: true,
-        qualityScore: data.qualityScore || 0.94,
+        ...data,
+        livenessScore: live.livenessScore,
+        livenessPassed: live.passed,
         previewUrl: base64Image,
       });
     } catch (err: any) {
@@ -165,6 +170,8 @@ export const StudentFaceEnrollModal: React.FC<StudentFaceEnrollModalProps> = ({
   const handleReset = () => {
     setCapturedImage(null);
     setExtractionResult(null);
+    setLivenessResult(null);
+    setConsentGranted(false);
     setErrorMessage(null);
     if (activeTab === 'camera') {
       startCamera();
@@ -177,19 +184,23 @@ export const StudentFaceEnrollModal: React.FC<StudentFaceEnrollModalProps> = ({
 
     setIsSaving(true);
     try {
-      const res = await authenticatedFetch(`/api/students/${studentId}/face-embedding`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          embedding: extractionResult.embedding,
-          photoUrl: capturedImage,
-        }),
+      if (!consentGranted) {
+        throw new Error('Biometrik ma’lumotni saqlashdan oldin rozilikni tasdiqlang.');
+      }
+
+      const consent = await createBiometricConsent({
+        subjectId: studentId,
+        subjectType: 'student',
+        granted: true,
+        evidenceRef: `ui:face-enrollment:${studentId}`,
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Vektorni saqlashda xatolik yuz berdi.');
-      }
+      await enrollStudentFace(
+        studentId,
+        extractionResult.embedding,
+        consent.id,
+        capturedImage,
+      );
 
       onSuccess(extractionResult.embedding, capturedImage);
       onClose();
@@ -344,6 +355,19 @@ export const StudentFaceEnrollModal: React.FC<StudentFaceEnrollModalProps> = ({
                     </span>
                   </div>
 
+                  {livenessResult && (
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 mt-2 border-t border-emerald-100 dark:border-emerald-900">
+                      <div>
+                        <span className="text-emerald-700/80 dark:text-emerald-400/80 text-[11px]">Liveness:</span>
+                        <div className="font-bold font-mono">{(livenessResult.livenessScore * 100).toFixed(1)}%</div>
+                      </div>
+                      <div>
+                        <span className="text-emerald-700/80 dark:text-emerald-400/80 text-[11px]">Model:</span>
+                        <div className="font-bold text-[10px]">{extractionResult.modelVersion || 'Face AI'}</div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-emerald-100 dark:border-emerald-900">
                     <div>
                       <span className="text-emerald-700/80 dark:text-emerald-400/80 text-[11px]">Sifat ko‘rsatkichi:</span>
@@ -373,6 +397,21 @@ export const StudentFaceEnrollModal: React.FC<StudentFaceEnrollModalProps> = ({
 
           <canvas ref={canvasRef} className="hidden" />
         </div>
+
+        {extractionResult && (
+          <label className="mt-4 flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-[11px] text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200">
+            <input
+              type="checkbox"
+              checked={consentGranted}
+              onChange={(event) => setConsentGranted(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600"
+            />
+            <span>
+              Biometrik ma’lumotni Face ID orqali davomat va identifikatsiya uchun saqlashga rozilik beraman.
+              Rozilikni keyinchalik bekor qilish mumkin.
+            </span>
+          </label>
+        )}
 
         {/* Pastki Amallar Paneli */}
         <div className="mt-6 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-4">

@@ -216,6 +216,32 @@ test('6. Homework Management Isolation & Cross-Teacher Grading Guard', async () 
   });
   assert.equal(submitRes.status, 200);
 
+  const unrelatedChildSubmitRes = await fetch(`${baseUrl}/api/homework/${hwId}/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${studentToken}`,
+    },
+    body: JSON.stringify({
+      studentId: 'stu-0003',
+      submissionText: 'Unrelated child submission must be rejected',
+    }),
+  });
+  assert.equal(unrelatedChildSubmitRes.status, 403, 'Parent must not submit for an unrelated child');
+
+  const missingHomeworkSubmitRes = await fetch(`${baseUrl}/api/homework/hw-does-not-exist/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${studentToken}`,
+    },
+    body: JSON.stringify({
+      studentId: 'stu-0001',
+      submissionText: 'Missing homework must not be created implicitly',
+    }),
+  });
+  assert.equal(missingHomeworkSubmitRes.status, 404, 'Unknown homework must not be created by submission');
+
   const unauthGradeRes = await fetch(`${baseUrl}/api/homework/${hwId}/grade`, {
     method: 'POST',
     headers: {
@@ -243,6 +269,118 @@ test('6. Homework Management Isolation & Cross-Teacher Grading Guard', async () 
     }),
   });
   assert.equal(authGradeRes.status, 200, 'Teacher 1 can grade their own homework');
+
+  const teacher2UpdateRes = await fetch(`${baseUrl}/api/data/homework/${hwId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenTch2}`,
+    },
+    body: JSON.stringify({ title: 'Unauthorized overwrite', teacherId: 'usr-tch-002' }),
+  });
+  assert.equal(teacher2UpdateRes.status, 403, 'Teacher 2 must not update Teacher 1 homework');
+
+  const teacher2DeleteRes = await fetch(`${baseUrl}/api/data/homework/${hwId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${tokenTch2}` },
+  });
+  assert.equal(teacher2DeleteRes.status, 403, 'Teacher 2 must not delete Teacher 1 homework');
+
+  const teacher2MissingGradeRes = await fetch(`${baseUrl}/api/homework/unknown-homework/grade`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenTch2}`,
+    },
+    body: JSON.stringify({ studentId: 'stu-0001', grade: 5 }),
+  });
+  assert.equal(teacher2MissingGradeRes.status, 404, 'Grading must not create missing homework');
+});
+
+test('8. Teacher Student, Subject, KTP, and Lesson Ownership Guards', async () => {
+  const tokenTch1 = 'dev-token-usr-tch-001';
+  const tokenTch2 = 'dev-token-usr-tch-002';
+
+  const foreignAttendanceRes = await fetch(`${baseUrl}/api/attendance/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenTch1}` },
+    body: JSON.stringify({
+      studentId: 'stu-0040',
+      status: 'present',
+      date: '2026-09-12',
+      className: '5-A',
+      classId: 'cls-5-a',
+      lessonId: 'session-isolation-test',
+    }),
+  });
+  assert.equal(foreignAttendanceRes.status, 403, 'Teacher must not mutate a student outside the assigned class');
+
+  const foreignGradeRes = await fetch(`${baseUrl}/api/grades/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenTch1}` },
+    body: JSON.stringify({ studentId: 'stu-0001', className: '5-A', subject: 'Physics', field: 'score', value: 80, updatedAverage: 80 }),
+  });
+  assert.equal(foreignGradeRes.status, 403, 'Teacher must not mutate an unassigned subject grade');
+
+  const teacher2KtpId = `ktp-teacher2-${Date.now()}`;
+  const teacher2KtpRes = await fetch(`${baseUrl}/api/ktp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenTch2}` },
+    body: JSON.stringify({ id: teacher2KtpId, className: '5-B', subject: 'Geometriya', lessons: [{ lessonNumber: 1, topic: 'Uchburchaklar' }] }),
+  });
+  assert.equal(teacher2KtpRes.status, 200);
+
+  const teacher1KtpMutationRes = await fetch(`${baseUrl}/api/ktp/${teacher2KtpId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenTch1}` },
+    body: JSON.stringify({ status: 'approved' }),
+  });
+  assert.equal(teacher1KtpMutationRes.status, 403, 'Teacher must not mutate another teacher KTP');
+
+  const teacher2LessonId = `lesson-teacher2-${Date.now()}`;
+  const teacher2LessonRes = await fetch(`${baseUrl}/api/teacher/lessons/${teacher2LessonId}/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenTch2}` },
+    body: JSON.stringify({ className: '5-B', subject: 'Geometriya', topic: 'Uchburchaklar' }),
+  });
+  assert.equal(teacher2LessonRes.status, 200);
+
+  const teacher1LessonFinishRes = await fetch(`${baseUrl}/api/teacher/lessons/${teacher2LessonId}/finish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenTch1}` },
+    body: JSON.stringify({ className: '5-B', subject: 'Geometriya', entries: [] }),
+  });
+  assert.equal(teacher1LessonFinishRes.status, 403, 'Teacher must not finish another teacher lesson');
+});
+
+test('9. Parent Child Ownership Guards on Reads and Mutations', async () => {
+  const parentToken = 'dev-parent-token';
+
+  const foreignStudentRes = await fetch(`${baseUrl}/api/mastery/student/stu-0003`, {
+    headers: { Authorization: `Bearer ${parentToken}` },
+  });
+  assert.equal(foreignStudentRes.status, 403, 'Parent must not read foreign child mastery');
+
+  const foreignSubmissionRes = await fetch(`${baseUrl}/api/homework/does-not-matter/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${parentToken}` },
+    body: JSON.stringify({ studentId: 'stu-0003', submissionText: 'forged parent child' }),
+  });
+  assert.equal(foreignSubmissionRes.status, 403, 'Parent must not submit for a foreign child');
+
+  const missingHomeworkRes = await fetch(`${baseUrl}/api/homework/does-not-matter/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${parentToken}` },
+    body: JSON.stringify({ studentId: 'stu-0001', submissionText: 'unknown homework' }),
+  });
+  assert.equal(missingHomeworkRes.status, 404, 'Unknown homework must return 404 for an owned child');
+
+  const visibleStudentsRes = await fetch(`${baseUrl}/api/data/students`, {
+    headers: { Authorization: `Bearer ${parentToken}` },
+  });
+  assert.equal(visibleStudentsRes.status, 200);
+  const visibleStudents = await visibleStudentsRes.json();
+  assert.ok(visibleStudents.items.every((student) => ['stu-0001', 'stu-0002'].includes(student.id)), 'Parent student list must contain only linked children');
 });
 
 test('7. Student Profile Scoping & Cross-Class Privacy Guard', async () => {

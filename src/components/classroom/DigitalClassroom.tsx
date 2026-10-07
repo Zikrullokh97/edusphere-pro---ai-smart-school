@@ -29,7 +29,7 @@ import {
 import confetti from 'canvas-confetti';
 import { AppLanguage, StudentRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
 import { authenticatedFetch } from '../../lib/api';
 
 interface DigitalClassroomProps {
@@ -59,7 +59,19 @@ export const DigitalClassroom: React.FC<DigitalClassroomProps> = ({
   const [activeDiagram, setActiveDiagram] = useState<string | null>('linear_balance');
 
   // Students live presence
-  const [students, setStudents] = useState<StudentRecord[]>(MOCK_STUDENTS);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    listSchoolData<StudentRecord>('students')
+      .then((items) => {
+        if (active) setStudents(items.filter((student) => student.grade === currentClass));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [currentClass]);
   const [raisedHands, setRaisedHands] = useState<Record<string, boolean>>({
     'stu-01': true, // Ali raised hand
     'stu-03': false,

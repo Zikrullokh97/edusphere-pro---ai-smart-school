@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, ClassGroup, StudentRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { CURRENT_SCHOOL, MOCK_CLASSES } from '../../data/mockData';
+import { CURRENT_SCHOOL } from '../../data/mockData';
 import { listSchoolData } from '../../lib/schoolRepository';
 
 interface ReportBuilderProps {
@@ -44,7 +44,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
     setIsExporting(true);
     if (format === 'csv') {
       const headers = ['Sinf guruhi', 'Sinf rahbari', 'O‘quvchilar soni', 'O‘rtacha davomat', 'O‘rtacha baho'];
-      const displayClasses = classes.length > 0 ? classes : MOCK_CLASSES;
+      const displayClasses = classes;
       const rows = displayClasses.map((cls: any) => [
         cls.name,
         cls.homeroomTeacher || cls.teacher || '—',
@@ -225,7 +225,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {(classes.length > 0 ? classes : MOCK_CLASSES).map((cls) => {
+                  {classes.map((cls) => {
                     const classStudents = students.filter((s) => s.grade === cls.name || s.classId === cls.id);
                     const count = cls.studentCount || (classStudents.length > 0 ? classStudents.length : 28);
                     const avgAtt = cls.attendanceAvg || (classStudents.length > 0

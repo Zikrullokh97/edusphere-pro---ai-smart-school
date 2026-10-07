@@ -32,9 +32,9 @@ import {
   Zap,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { AppLanguage, ScheduleSlot, StudentRecord, UserRole } from '../../types';
+import { AppLanguage, ScheduleSlot, StudentRecord, UserRole, HomeworkAssignment, TeacherRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS, MOCK_HOMEWORKS, MOCK_SCHEDULE, MOCK_TEACHERS } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
 import { GateMovementTimeline } from '../attendance/GateMovementTimeline';
 
 interface StudentParentPortalProps {
@@ -54,12 +54,30 @@ export const StudentParentPortal: React.FC<StudentParentPortalProps> = ({
 }) => {
   const t = useI18n(language);
 
-  // Available children in the family
-  const familyChildren: StudentRecord[] = MOCK_STUDENTS.slice(0, 4);
-  const [selectedChildId, setSelectedChildId] = useState<string>(familyChildren[0]?.id || 'std-01');
+  // Available children are scoped by the authenticated backend.
+  const [familyChildren, setFamilyChildren] = useState<StudentRecord[]>([]);
+  const [familyHomework, setFamilyHomework] = useState<HomeworkAssignment[]>([]);
+  const [schoolTeachers, setSchoolTeachers] = useState<TeacherRecord[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState<string>('');
+  const selectedChild = familyChildren.find((c) => c.id === selectedChildId) || familyChildren[0] || ({} as StudentRecord);
 
-  const selectedChild =
-    familyChildren.find((c) => c.id === selectedChildId) || familyChildren[0];
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      listSchoolData<StudentRecord>('students'),
+      listSchoolData<HomeworkAssignment>('homework'),
+      listSchoolData<TeacherRecord>('teachers'),
+    ]).then(([children, homework, teachers]) => {
+      if (!active) return;
+      setFamilyChildren(children);
+      setFamilyHomework(homework);
+      setSchoolTeachers(teachers);
+      if (children.length > 0) setSelectedChildId(children[0].id);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Active perspective inside the unified portal:
   // 'all_in_one': Unified Family & Student Overview
@@ -71,7 +89,7 @@ export const StudentParentPortal: React.FC<StudentParentPortalProps> = ({
 
   // Teacher messaging state
   const [selectedTeacherRecipient, setSelectedTeacherRecipient] = useState<string>(
-    MOCK_TEACHERS[0].name + ' (Sinf rahbari - 7-A)'
+    schoolTeachers[0]?.name ? schoolTeachers[0].name + ' (Sinf rahbari)' : ''
   );
   const [messageText, setMessageText] = useState('');
   const [messageSent, setMessageSent] = useState(false);
@@ -81,7 +99,7 @@ export const StudentParentPortal: React.FC<StudentParentPortalProps> = ({
   const [studentQRUrl, setStudentQRUrl] = useState<string | null>(null);
 
   // Today's schedule for selected child
-  const allSlots = masterSchedule && masterSchedule.length > 0 ? masterSchedule : MOCK_SCHEDULE;
+  const allSlots = masterSchedule && masterSchedule.length > 0 ? masterSchedule : [];
   const todayClasses = allSlots.filter(
     (s) => s.day === 'MON' && s.className === selectedChild.grade
   );
@@ -423,7 +441,7 @@ export const StudentParentPortal: React.FC<StudentParentPortalProps> = ({
                 </div>
 
                 <div className="mt-4 space-y-3">
-                  {MOCK_HOMEWORKS.slice(0, 3).map((hw) => (
+                  {familyHomework.slice(0, 3).map((hw) => (
                     <div
                       key={hw.id}
                       className="rounded-2xl border border-slate-100 bg-slate-50 p-4 transition-all hover:border-indigo-200 dark:border-slate-800 dark:bg-slate-800/60"
@@ -537,7 +555,7 @@ export const StudentParentPortal: React.FC<StudentParentPortalProps> = ({
                       onChange={(e) => setSelectedTeacherRecipient(e.target.value)}
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                     >
-                      {MOCK_TEACHERS.map((tch) => (
+                      {schoolTeachers.map((tch) => (
                         <option key={tch.id} value={`${tch.name} (${tch.subject})`}>
                           {tch.name} — {tch.subject} {tch.homeroomClass ? `(Sinf rahbari ${tch.homeroomClass})` : ''}
                         </option>

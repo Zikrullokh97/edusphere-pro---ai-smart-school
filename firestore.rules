@@ -42,7 +42,19 @@ service cloud.firestore {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() && sameSchool(resource.data));
       allow list: if isAdmin() && sameSchool(resource.data);
       allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming()) && incoming().userId == request.auth.uid && incoming().role == 'parent_student' && incoming().schoolId == 'school-71-tashkent';
-      allow update: if isSignedIn() && ((request.auth.uid == userId && incoming().role == existing().role && incoming().schoolId == existing().schoolId) || isAdmin() && sameSchool(existing())) && isValidId(userId) && isValidUser(incoming()) && incoming().userId == existing().userId;
+      allow update: if isSignedIn() &&
+        (
+          (
+            request.auth.uid == userId &&
+            incoming().role == existing().role &&
+            incoming().schoolId == existing().schoolId &&
+            incoming().userId == existing().userId
+          ) ||
+          (isAdmin() && sameSchool(existing()) && incoming().schoolId == existing().schoolId)
+        ) &&
+        isValidId(userId) &&
+        isValidUser(incoming()) &&
+        incoming().userId == existing().userId;
       allow delete: if false;
     }
 
@@ -145,6 +157,28 @@ service cloud.firestore {
       allow read: if isAdmin() && sameSchool(resource.data);
       allow write: if false;
     }
+
+    // Biometric templates/events are server-managed only. Never expose embeddings to clients.
+    match /biometric_templates/{templateId} {
+      allow read, write: if false;
+    }
+    match /biometric_consents/{consentId} {
+      allow read: if isAdmin() && sameSchool(resource.data);
+      allow write: if false;
+    }
+    match /biometric_events/{eventId} {
+      allow read: if isAdmin() && sameSchool(resource.data);
+      allow write: if false;
+    }
+    match /teacher_attendance/{recordId} {
+      allow read: if isAdmin() && sameSchool(resource.data);
+      allow write: if false;
+    }
+    match /camera_devices/{cameraId} {
+      allow read: if isAdmin() && sameSchool(resource.data);
+      allow write: if false;
+    }
+
     match /rate_limits/{limitId} {
       allow read, write: if false;
     }

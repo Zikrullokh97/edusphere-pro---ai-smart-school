@@ -217,7 +217,7 @@ export const SchoolManagementHub: React.FC<SchoolManagementHubProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400 font-semibold mt-0.5">
-              Maktab profili, o‘quv yillari, sinflar, xonalar va KAO fan standartlari boshqaruvi
+              {t('schoolManagementSubtitle')}
             </p>
           </div>
         </div>
@@ -299,45 +299,45 @@ export const SchoolManagementHub: React.FC<SchoolManagementHubProps> = ({
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-indigo-600" />
-                Rasmiy Maktab Pasporti va Ma'lumotlari
+                {t('schoolOfficialPassport')}
               </h2>
               <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full dark:bg-emerald-950/50">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Davlat akkreditatsiyasidan o‘tgan
+                {t('schoolAccredited')}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <span className="text-slate-400 font-bold block mb-1">Muassasa to‘liq nomi:</span>
+                <span className="text-slate-400 font-bold block mb-1">{t('institutionFullName')}:</span>
                 <span className="font-extrabold text-slate-900 dark:text-white text-sm">
                   №71 Ixtisoslashtirilgan Maktab-Gimnaziyasi
                 </span>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <span className="text-slate-400 font-bold block mb-1">Maktab ID kodi:</span>
+                <span className="text-slate-400 font-bold block mb-1">{t('schoolIdCode')}:</span>
                 <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
                   KG-BSH-71-SCH
                 </span>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <span className="text-slate-400 font-bold block mb-1">Maktab Direktori:</span>
+                <span className="text-slate-400 font-bold block mb-1">{t('schoolPrincipal')}:</span>
                 <span className="font-extrabold text-slate-900 dark:text-white">
                   Aigul Sadykova (Pedagogika fanlari nomzodi)
                 </span>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <span className="text-slate-400 font-bold block mb-1">O‘quv ishlari bo‘yicha Zauch:</span>
+                <span className="text-slate-400 font-bold block mb-1">{t('deputyPrincipalAcademic')}:</span>
                 <span className="font-extrabold text-slate-900 dark:text-white">
                   Jasur Karimov (Bosh o‘qituvchi)
                 </span>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <span className="text-slate-400 font-bold block mb-1">Manzil & Hudud:</span>
+                <span className="text-slate-400 font-bold block mb-1">{t('addressRegion')}:</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 mt-0.5">
                   <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   Bishkek sh., Sverdlov tumani, Chuy shoh ko‘chasi 142
@@ -345,7 +345,7 @@ export const SchoolManagementHub: React.FC<SchoolManagementHubProps> = ({
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <span className="text-slate-400 font-bold block mb-1">Aloqa va Pochta:</span>
+                <span className="text-slate-400 font-bold block mb-1">{t('contactEmail')}:</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 mt-0.5">
                   <Phone className="h-3.5 w-3.5 text-slate-400" /> +996 (312) 45-88-90
                   <Mail className="h-3.5 w-3.5 text-slate-400 ml-2" /> info@edusphere.school
@@ -356,29 +356,29 @@ export const SchoolManagementHub: React.FC<SchoolManagementHubProps> = ({
             {/* Capacities */}
             <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">
-                Maktab quvvati va bino sig‘imi
+                {t('schoolCapacityBuilding')}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 <div className="rounded-2xl bg-indigo-50/80 p-3 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40">
-                  <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 block">Jami Sig‘im</span>
+                  <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 block">{t('totalCapacity')}</span>
                   <span className="text-xl font-black text-indigo-900 dark:text-white font-mono mt-0.5 block">1,350</span>
                   <span className="text-[10px] text-slate-400">o‘rinli</span>
                 </div>
 
                 <div className="rounded-2xl bg-emerald-50/80 p-3 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40">
-                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">Amaldagi O‘quvchilar</span>
+                  <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">{t('currentStudents')}</span>
                   <span className="text-xl font-black text-emerald-900 dark:text-white font-mono mt-0.5 block">1,000</span>
                   <span className="text-[10px] text-emerald-600 font-bold">74% bandlik</span>
                 </div>
 
                 <div className="rounded-2xl bg-purple-50/80 p-3 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40">
-                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 block">Sinflar Soni</span>
+                  <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 block">{t('classCount')}</span>
                   <span className="text-xl font-black text-purple-900 dark:text-white font-mono mt-0.5 block">26</span>
                   <span className="text-[10px] text-slate-400">1–11 parallellar</span>
                 </div>
 
                 <div className="rounded-2xl bg-amber-50/80 p-3 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40">
-                  <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 block">O‘qituvchilar</span>
+                  <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 block">{t('teacherCount')}</span>
                   <span className="text-xl font-black text-amber-900 dark:text-white font-mono mt-0.5 block">70</span>
                   <span className="text-[10px] text-slate-400">mutaxassis</span>
                 </div>
@@ -391,7 +391,7 @@ export const SchoolManagementHub: React.FC<SchoolManagementHubProps> = ({
             <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4">
               <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-indigo-600" />
-                Ta'lim Standartlari & KAO Mosligi
+                {t('standardsKaoCompatibility')}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 №71 maktab o‘quv jarayoni Qirg‘iziston Respublikasi Ta‘lim va fan vazirligi hamda KAO (Кыргыз билим берүү академиясы) 2026–2027 o‘quv yili Bazaviy o‘quv rejasi asosida to‘liq akkreditatsiyalangan.

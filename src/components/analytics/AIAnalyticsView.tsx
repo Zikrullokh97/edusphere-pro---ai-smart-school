@@ -29,7 +29,7 @@ import {
 import { AppLanguage, StudentRecord, ClassGroup, TeacherRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
 import { listSchoolData } from '../../lib/schoolRepository';
-import { MOCK_STUDENTS, CURRENT_SCHOOL, MOCK_TEACHERS } from '../../data/mockData';
+import { CURRENT_SCHOOL } from '../../data/mockData';
 
 interface AIAnalyticsViewProps {
   language: AppLanguage;
@@ -67,12 +67,10 @@ export const AIAnalyticsView: React.FC<AIAnalyticsViewProps> = ({
         listSchoolData<ClassGroup>('classes'),
         listSchoolData<TeacherRecord>('teachers'),
       ]);
-      setStudents(stuRes && stuRes.length > 0 ? stuRes : MOCK_STUDENTS);
-      if (clsRes && clsRes.length > 0) setClasses(clsRes);
-      setTeachers(tchRes && tchRes.length > 0 ? tchRes : MOCK_TEACHERS);
+      setStudents(stuRes);
+      setClasses(clsRes);
+      setTeachers(tchRes);
     } catch {
-      setStudents(MOCK_STUDENTS);
-      setTeachers(MOCK_TEACHERS);
     } finally {
       setLoading(false);
     }
@@ -84,7 +82,7 @@ export const AIAnalyticsView: React.FC<AIAnalyticsViewProps> = ({
   };
 
   // Calculations
-  const allStudents = students.length > 0 ? students : MOCK_STUDENTS;
+  const allStudents = students;
   const totalCount = allStudents.length;
 
   const avgMastery = Math.round(

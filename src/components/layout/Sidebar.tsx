@@ -29,6 +29,7 @@ import {
   Bot,
   Flame,
   FileSpreadsheet,
+  Layers,
 } from 'lucide-react';
 import { UserRole, AppLanguage, UserProfile } from '../../types';
 import { useI18n } from '../../lib/i18n';
@@ -80,28 +81,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ],
         },
         {
-          header: 'MAKTAB BOSHQARUVI',
+          header: t('sectionSchoolManagement'),
           items: [
-            { id: 'school-management', label: t('navSchoolManagement') || 'Maktab Boshqaruvi', icon: Building, roles: ['admin'] },
-            { id: 'students', label: t('navStudents') || 'O‘quvchilar', icon: Users, roles: ['admin'] },
-            { id: 'teachers', label: t('navTeachers') || 'O‘qituvchilar', icon: GraduationCap, roles: ['admin'] },
-            { id: 'users', label: t('navUsers') || 'Foydalanuvchilar', icon: UserCheck, roles: ['admin'] },
+            { id: 'school-management', label: t('navSchoolManagement'), icon: Building, roles: ['admin'] },
+            { id: 'curriculum-standards', label: t('navCurriculumStandards'), icon: BookOpen, roles: ['admin'] },
+            { id: 'students', label: t('navStudents'), icon: Users, roles: ['admin'] },
+            { id: 'teachers', label: t('navTeachers'), icon: GraduationCap, roles: ['admin'] },
+            { id: 'users', label: t('navUsers'), icon: UserCheck, roles: ['admin'] },
           ],
         },
         {
-          header: 'MONITORING & AI TAHLIL',
+          header: t('sectionMonitoringAI'),
           items: [
-            { id: 'monitoring', label: t('navMonitoring') || 'Monitoring & Reyting', icon: BarChart3, roles: ['admin'] },
-            { id: 'ai-analytics', label: t('navAIAnalytics') || 'AI Analitika', icon: Sparkles, roles: ['admin'], isAI: true },
-            { id: 'reports', label: t('navReports') || 'Hisobotlar (73-OSH/Tabel)', icon: Award, roles: ['admin'] },
+            { id: 'monitoring', label: t('navMonitoring'), icon: BarChart3, roles: ['admin'] },
+            { id: 'standards-analytics', label: t('navStandardsAnalytics'), icon: Layers, roles: ['admin'] },
+            { id: 'ai-analytics', label: t('navAIAnalytics'), icon: Sparkles, roles: ['admin'], isAI: true },
+            { id: 'reports', label: t('navReportsDetailed'), icon: Award, roles: ['admin'] },
           ],
         },
         {
-          header: 'ALOQA & XAVFSIZLIK',
+          header: t('sectionCommunicationSecurity'),
           items: [
-            { id: 'announcements', label: t('navAnnouncements') || 'E‘lonlar Markazi', icon: Bell, roles: ['admin'] },
-            { id: 'security', label: t('navSecurity') || 'Xavfsizlik & Audit', icon: ShieldCheck, roles: ['admin'] },
-            { id: 'settings', label: t('navSettings') || 'Sozlamalar', icon: Sliders, roles: ['admin'] },
+            { id: 'announcements', label: t('navAnnouncementsCenter'), icon: Bell, roles: ['admin'] },
+            { id: 'security', label: t('navSecurityAudit'), icon: ShieldCheck, roles: ['admin'] },
+            { id: 'settings', label: t('navSettings'), icon: Sliders, roles: ['admin'] },
           ],
         },
       ];
@@ -116,22 +119,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ],
         },
         {
-          header: 'DARS VA PEDAGOGIKA',
+          header: t('sectionTeachingPedagogy'),
           items: [
-            { id: 'schedule', label: t('navSchedule') || 'Dars Jadvali', icon: Calendar, roles: ['teacher'] },
-            { id: 'attendance', label: t('navAttendance') || 'Davomat', icon: CalendarCheck, roles: ['teacher'] },
-            { id: 'electronic-journal', label: t('navElectronicJournal') || 'Elektron Jurnal', icon: BookOpen, roles: ['teacher'] },
-            { id: 'homework', label: t('navHomework') || 'Uy Vazifalari', icon: FileText, roles: ['teacher'] },
-            { id: 'lesson-plans', label: 'Dars Rejalari (KTP)', icon: FileSpreadsheet, roles: ['teacher'] },
-            { id: 'digital-classroom', label: t('navDigitalClassroom') || 'Raqamli Sinfxona', icon: ScreenShare, roles: ['teacher'], badge: 'Live' },
-            { id: 'ai-lesson-gen', label: t('navAILessonGen') || 'AI Dars Generatori', icon: Sparkles, roles: ['teacher'], isAI: true },
+            { id: 'schedule', label: t('navSchedule'), icon: Calendar, roles: ['teacher'] },
+            { id: 'attendance', label: t('navAttendance'), icon: CalendarCheck, roles: ['teacher'] },
+            { id: 'electronic-journal', label: t('navElectronicJournal'), icon: BookOpen, roles: ['teacher'] },
+            { id: 'homework', label: t('navHomework'), icon: FileText, roles: ['teacher'] },
+            { id: 'lesson-plans', label: t('navLessonPlans'), icon: FileSpreadsheet, roles: ['teacher'] },
+            { id: 'teacher-resources', label: t('navTeacherResources'), icon: Layers, roles: ['teacher'] },
+            { id: 'digital-classroom', label: t('navDigitalClassroom'), icon: ScreenShare, roles: ['teacher'], badge: 'Live' },
+            { id: 'ai-lesson-gen', label: t('navAILessonGen'), icon: Sparkles, roles: ['teacher'], isAI: true },
           ],
         },
         {
-          header: 'ALOQA & SOZLAMALAR',
+          header: t('sectionCommunicationSettings'),
           items: [
-            { id: 'announcements', label: t('navAnnouncements') || 'E‘lonlar Markazi', icon: Bell, roles: ['teacher'] },
-            { id: 'settings', label: t('navSettings') || 'Sozlamalar', icon: Sliders, roles: ['teacher'] },
+            { id: 'announcements', label: t('navAnnouncementsCenter'), icon: Bell, roles: ['teacher'] },
+            { id: 'settings', label: t('navSettings'), icon: Sliders, roles: ['teacher'] },
           ],
         },
       ];
@@ -146,21 +150,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ],
       },
       {
-        header: 'O‘QISH & NATIJALAR',
+        header: t('sectionLearningResults'),
         items: [
-          { id: 'schedule', label: t('navSchedule') || 'Dars Jadvali', icon: Calendar, roles: ['parent_student'] },
-          { id: 'attendance', label: t('navAttendance') || 'Davomat & Turniket', icon: CalendarCheck, roles: ['parent_student'] },
-          { id: 'homework', label: t('navHomework') || 'Uy Vazifalari', icon: FileText, roles: ['parent_student'] },
-          { id: 'gradebook', label: t('navGradebook') || 'Baholar Jurnali', icon: FileSpreadsheet, roles: ['parent_student'] },
-          { id: 'ai-tutor', label: t('navAITutor') || 'AI Sokratik Tyutor', icon: Bot, roles: ['parent_student'], isAI: true },
-          { id: 'gamification', label: t('navGamification') || 'Yutuqlar va XP', icon: Flame, roles: ['parent_student'], badge: 'XP' },
+          { id: 'schedule', label: t('navSchedule'), icon: Calendar, roles: ['parent_student'] },
+          { id: 'attendance', label: t('navAttendanceTurnstile'), icon: CalendarCheck, roles: ['parent_student'] },
+          { id: 'homework', label: t('navHomework'), icon: FileText, roles: ['parent_student'] },
+          { id: 'gradebook', label: t('navGradebook'), icon: FileSpreadsheet, roles: ['parent_student'] },
+          { id: 'mastery-progress', label: t('navMasteryProgress'), icon: Award, roles: ['parent_student'] },
+          { id: 'ai-tutor', label: t('navAITutor'), icon: Bot, roles: ['parent_student'], isAI: true },
+          { id: 'gamification', label: t('navGamification'), icon: Flame, roles: ['parent_student'], badge: 'XP' },
         ],
       },
       {
-        header: 'ALOQA & SOZLAMALAR',
+        header: t('sectionCommunicationSettings'),
         items: [
-          { id: 'announcements', label: t('navAnnouncements') || 'E‘lonlar Markazi', icon: Bell, roles: ['parent_student'] },
-          { id: 'settings', label: t('navSettings') || 'Sozlamalar', icon: Sliders, roles: ['parent_student'] },
+          { id: 'announcements', label: t('navAnnouncementsCenter'), icon: Bell, roles: ['parent_student'] },
+          { id: 'settings', label: t('navSettings'), icon: Sliders, roles: ['parent_student'] },
         ],
       },
     ];

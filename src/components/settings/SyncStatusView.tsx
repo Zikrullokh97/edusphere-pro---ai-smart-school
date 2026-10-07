@@ -160,6 +160,7 @@ export const SyncStatusView: React.FC<SyncStatusViewProps> = ({ language }) => {
           studentName: 'Madina Karimova',
           className: '7-A',
           date: new Date().toISOString().split('T')[0],
+          lessonId: 'offline-demo-session',
           status: 'present',
           time: timestamp,
           checkInTime: timestamp,

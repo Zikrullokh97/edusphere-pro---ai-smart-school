@@ -20,9 +20,9 @@ import {
   Download,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { AppLanguage, ScheduleSlot } from '../../types';
+import { AppLanguage, ScheduleSlot, StudentRecord, HomeworkAssignment } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS, MOCK_HOMEWORKS, MOCK_SCHEDULE } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
 
 interface StudentDashboardProps {
   language: AppLanguage;
@@ -36,10 +36,29 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   masterSchedule,
 }) => {
   const t = useI18n(language);
-  const currentStudent = MOCK_STUDENTS[0]; // Ali Nurdinov
-  const studentHomeworks = MOCK_HOMEWORKS;
-  const allSlots = masterSchedule && masterSchedule.length > 0 ? masterSchedule : MOCK_SCHEDULE;
-  const todayClasses = allSlots.filter((s) => s.day === 'MON' && s.className === '7-A');
+  const [currentStudent, setCurrentStudent] = useState<StudentRecord>({} as StudentRecord);
+  const [studentHomeworks, setStudentHomeworks] = useState<HomeworkAssignment[]>([]);
+  const [remoteSchedule, setRemoteSchedule] = useState<ScheduleSlot[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      listSchoolData<StudentRecord>('students'),
+      listSchoolData<HomeworkAssignment>('homework'),
+      listSchoolData<ScheduleSlot>('schedules'),
+    ]).then(([students, homework, schedules]) => {
+      if (!active) return;
+      if (students.length > 0) setCurrentStudent(students[0]);
+      setStudentHomeworks(homework);
+      setRemoteSchedule(schedules);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const allSlots = masterSchedule && masterSchedule.length > 0 ? masterSchedule : remoteSchedule;
+  const todayClasses = allSlots.filter((s) => s.className === currentStudent.grade);
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [studentQRUrl, setStudentQRUrl] = useState<string | null>(null);

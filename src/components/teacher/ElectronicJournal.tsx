@@ -43,7 +43,7 @@ import {
   isKTPApproved,
   getKTPStatusLabel,
 } from '../../lib/ktpEngine';
-import { MOCK_STUDENTS, MOCK_TEACHERS, MOCK_SCHEDULE } from '../../data/mockData';
+
 
 interface JournalEntry {
   studentId: string;
@@ -74,8 +74,8 @@ const todayStr = new Date().toISOString().slice(0, 10);
 
 export const ElectronicJournal: React.FC<ElectronicJournalProps> = ({
   language = 'uz',
-  masterSchedule = MOCK_SCHEDULE,
-  teachers = MOCK_TEACHERS,
+  masterSchedule = [],
+  teachers = [],
   currentUser,
   initialClass,
   initialSubject,
@@ -111,7 +111,7 @@ export const ElectronicJournal: React.FC<ElectronicJournalProps> = ({
         workloadHours: currentUser.workloadHours || 0,
       };
     }
-    return teachers[0] || MOCK_TEACHERS[0] || {
+    return teachers[0] || {
       id: 'tch-001',
       name: 'O‘qituvchi',
       email: 'teacher@edusphere.school',
@@ -127,7 +127,7 @@ export const ElectronicJournal: React.FC<ElectronicJournalProps> = ({
       workloadHours: 20,
     };
   }, [teachers, currentUser]);
-  const [students, setStudents] = useState<StudentRecord[]>(MOCK_STUDENTS);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
   const [ktpDocs, setKtpDocs] = useState(SEED_KTP_DOCUMENTS);
   const [academicYears, setAcademicYears] = useState<AcademicYearRecord[]>([
     {

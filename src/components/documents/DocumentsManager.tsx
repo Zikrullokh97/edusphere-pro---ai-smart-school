@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, SchoolDocument, UserRole } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_DOCUMENTS } from '../../data/mockData';
+
 import { listSchoolData, createSchoolData } from '../../lib/schoolRepository';
 
 interface DocumentsManagerProps {
@@ -44,7 +44,7 @@ export const DocumentsManager: React.FC<DocumentsManagerProps> = ({
   activeTeacherHomeroom,
 }) => {
   const t = useI18n(language);
-  const [documents, setDocuments] = useState<SchoolDocument[]>(MOCK_DOCUMENTS);
+  const [documents, setDocuments] = useState<SchoolDocument[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedDocType, setSelectedDocType] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -55,11 +55,8 @@ export const DocumentsManager: React.FC<DocumentsManagerProps> = ({
     let active = true;
     listSchoolData<SchoolDocument>('documents')
       .then((items) => {
-        if (active && items.length > 0) {
-          // Merge unique by ID
-          const existingIds = new Set(items.map((d) => d.id));
-          const mockNonDuplicated = MOCK_DOCUMENTS.filter((d) => !existingIds.has(d.id));
-          setDocuments([...items, ...mockNonDuplicated]);
+        if (active) {
+          setDocuments(items);
         }
       })
       .catch(() => undefined);

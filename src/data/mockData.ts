@@ -648,13 +648,13 @@ export const MOCK_SCHEDULE: ScheduleSlot[] = [
 ];
 
 export const MOCK_ATTENDANCE_ENTRIES: AttendanceEntry[] = [
-  { id: 'att-1', studentId: 'stu-01', studentName: 'Ali Nurdinov', className: '7-A', date: '2026-08-20', status: 'present', checkInTime: '07:54', method: 'face_recognition', confidence: 99.1 },
-  { id: 'att-2', studentId: 'stu-02', studentName: 'Bekzod Rakhimov', className: '7-A', date: '2026-08-20', status: 'late', checkInTime: '08:14', method: 'face_recognition', confidence: 97.4, note: '14 min late' },
-  { id: 'att-3', studentId: 'stu-03', studentName: 'Sara Amanova', className: '7-A', date: '2026-08-20', status: 'present', checkInTime: '07:48', method: 'face_recognition', confidence: 99.6 },
-  { id: 'att-4', studentId: 'stu-04', studentName: 'Dinara Karimova', className: '7-A', date: '2026-08-20', status: 'present', checkInTime: '07:58', method: 'face_recognition', confidence: 98.3 },
-  { id: 'att-5', studentId: 'stu-05', studentName: 'Timur Askarov', className: '7-A', date: '2026-08-20', status: 'absent', method: 'manual', note: 'Parent notified via SMS' },
-  { id: 'att-6', studentId: 'stu-06', studentName: 'Malika Yusupova', className: '7-A', date: '2026-08-20', status: 'present', checkInTime: '07:51', method: 'face_recognition', confidence: 98.9 },
-  { id: 'att-7', studentId: 'stu-07', studentName: 'Azamat Toktoev', className: '7-A', date: '2026-08-20', status: 'present', checkInTime: '07:56', method: 'qr_code' },
+  { id: 'att-1', studentId: 'stu-01', studentName: 'Ali Nurdinov', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'present', checkInTime: '07:54', method: 'face_recognition', confidence: 99.1 },
+  { id: 'att-2', studentId: 'stu-02', studentName: 'Bekzod Rakhimov', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'late', checkInTime: '08:14', method: 'face_recognition', confidence: 97.4, note: '14 min late' },
+  { id: 'att-3', studentId: 'stu-03', studentName: 'Sara Amanova', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'present', checkInTime: '07:48', method: 'face_recognition', confidence: 99.6 },
+  { id: 'att-4', studentId: 'stu-04', studentName: 'Dinara Karimova', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'present', checkInTime: '07:58', method: 'face_recognition', confidence: 98.3 },
+  { id: 'att-5', studentId: 'stu-05', studentName: 'Timur Askarov', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'absent', method: 'manual', note: 'Parent notified via SMS' },
+  { id: 'att-6', studentId: 'stu-06', studentName: 'Malika Yusupova', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'present', checkInTime: '07:51', method: 'face_recognition', confidence: 98.9 },
+  { id: 'att-7', studentId: 'stu-07', studentName: 'Azamat Toktoev', className: '7-A', date: '2026-08-20', lessonId: 'demo-lesson-1', status: 'present', checkInTime: '07:56', method: 'qr_code' },
 ];
 
 export const MOCK_ATTENDANCE = MOCK_ATTENDANCE_ENTRIES;

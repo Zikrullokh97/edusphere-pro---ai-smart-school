@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, GradeEntry, UserRole, ClassGroup } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_GRADES } from '../../data/mockData';
+
 import { pwaManager } from '../../lib/pwa';
 import { offlineDB, DBGradeEntry } from '../../lib/indexedDB';
 import { listSchoolData } from '../../lib/schoolRepository';
@@ -43,7 +43,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({
   const t = useI18n(language);
   const isStudentOrParent = currentRole === 'parent_student';
   const [selectedClass, setSelectedClass] = useState(initialClass);
-  const [availableClasses, setAvailableClasses] = useState<string[]>(ALL_SCHOOL_CLASSES);
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('Mathematics');
 
   useEffect(() => {
@@ -124,16 +124,8 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({
           setGrades(dbGrades);
         }
       } catch (err) {
-        console.warn('Failed to load grades from IndexedDB:', err);
-        if (isMounted) {
-          const fallback = MOCK_GRADES.map((g) => ({
-            ...g,
-            id: `grd-${g.studentId}-${selectedClass}-${selectedSubject}`,
-            className: selectedClass,
-            subject: selectedSubject,
-          }));
-          setGrades(fallback);
-        }
+        console.warn('Failed to load grades:', err);
+        if (isMounted) setGrades([]);
       } finally {
         if (isMounted) setIsLoadingDB(false);
       }

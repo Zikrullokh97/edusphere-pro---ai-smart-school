@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 import { AppLanguage, StudentRecord, TeacherRecord, UserRole, UserProfile } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS, MOCK_TEACHERS } from '../../data/mockData';
 import { listSchoolData, createSchoolData, updateSchoolData, archiveSchoolData } from '../../lib/schoolRepository';
 import { authenticatedFetch } from '../../lib/api';
 import { KyrgyzTabelDocument } from '../../lib/kyrgyzstanEdu';
@@ -69,13 +68,13 @@ export function sortStudentsNaturally(students: StudentRecord[]): StudentRecord[
 export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
   language,
   currentRole = 'admin',
-  teachers = MOCK_TEACHERS,
+  teachers = [],
   activeTeacherId,
   currentUser,
   onNavigateTab,
 }) => {
   const t = useI18n(language);
-  const [schoolStudents, setSchoolStudents] = useState<StudentRecord[]>(() => sortStudentsNaturally(MOCK_STUDENTS));
+  const [schoolStudents, setSchoolStudents] = useState<StudentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -456,10 +455,10 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  O‘quvchilar Ro‘yxati va Pasporti
+                  {t('navStudents')}
                 </h1>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                  Barcha sinflar kesimida o‘quvchilar ma’lumotlari, davomati va akademik nazorati
+                  {t('kpiStudents')} · {t('kpiAttendance')} · {t('kpiAvgGrade')}
                 </p>
               </div>
             </div>
@@ -472,7 +471,7 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
               className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-2xs transition-all"
             >
               <Download className="h-4 w-4 text-slate-500" />
-              <span>Eksport (CSV)</span>
+              <span>{t('exportExcel')} (CSV)</span>
             </button>
 
             {currentRole === 'admin' && (
@@ -483,7 +482,7 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
                   className="flex items-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/70 px-3.5 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 shadow-2xs transition-all"
                 >
                   <Upload className="h-4 w-4" />
-                  <span>Ommaviy Yuklash (CSV)</span>
+                  <span>{t('bulkUploadStudents')}</span>
                 </button>
 
                 <button
@@ -492,7 +491,7 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
                   className="flex items-center gap-1.5 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700 active:scale-95 transition-all"
                 >
                   <UserPlus className="h-4 w-4" />
-                  <span>+ Yangi O‘quvchi Qo‘shish</span>
+                  <span>+ {t('addStudent')}</span>
                 </button>
               </>
             )}
@@ -510,21 +509,21 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
         {/* Real Statistics Strip */}
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Jami O‘quvchilar</div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('kpiStudents')}</div>
             <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
               {stats.hasData ? `${stats.total} nafar` : '—'}
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">O‘rtacha Baho / GPA</div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('kpiAvgGrade')} / GPA</div>
             <div className="mt-1 text-2xl font-black text-indigo-600 dark:text-indigo-400">
               {stats.hasData ? stats.avgGpa : '—'}
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">O‘rtacha Davomat</div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t('kpiAttendance')}</div>
             <div className="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
               {stats.hasData ? stats.avgAtt : '—'}
             </div>
@@ -552,7 +551,7 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="O‘quvchi ismi, ID raqami, IIN, ota-onasi yoki telefon raqami bo‘yicha qidiruv..."
+              placeholder={t('studentsSearchPlaceholder')}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-10 pr-4 py-2.5 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
             {searchQuery && (
@@ -576,7 +575,7 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
               }}
               className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
-              <option value="ALL">Barcha sinflar</option>
+              <option value="ALL">{t('allClasses')}</option>
               {availableClasses.map((cls) => (
                 <option key={cls} value={cls}>
                   {cls} sinfi
@@ -593,9 +592,9 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
               }}
               className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
-              <option value="ALL">Barcha holatlar</option>
-              <option value="safe">Xavfsiz (Faol)</option>
-              <option value="risk_only">Xavf guruhida</option>
+              <option value="ALL">{t('allStatuses')}</option>
+              <option value="safe">{t('safeActive')}</option>
+              <option value="risk_only">{t('atRisk')}</option>
             </select>
 
             {/* Sorting */}
@@ -604,10 +603,10 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
               onChange={(e) => setSortBy(e.target.value as any)}
               className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
-              <option value="name">Alifbo bo‘yicha (A-Z)</option>
-              <option value="grade">O‘zlashtirish (Yuqori)</option>
-              <option value="attendance">Davomat (Yuqori)</option>
-              <option value="studentId">ID raqami bo‘yicha</option>
+              <option value="name">{t('sortAlphabetical')}</option>
+              <option value="grade">{t('sortGrade')}</option>
+              <option value="attendance">{t('sortAttendance')}</option>
+              <option value="studentId">{t('sortStudentId')}</option>
             </select>
 
             {/* Page Size */}
@@ -635,8 +634,8 @@ export const StudentsDirectory: React.FC<StudentsDirectoryProps> = ({
             <thead className="border-b border-slate-100 bg-slate-50/70 text-slate-400 dark:border-slate-800 dark:bg-slate-800/40 uppercase font-bold text-[10px]">
               <tr>
                 <th className="p-4">№</th>
-                <th className="p-4">O‘quvchi F.I.SH</th>
-                <th className="p-4">Sinf</th>
+                <th className="p-4">{t('studentFullName')}</th>
+                <th className="p-4">{t('class')}</th>
                 <th className="p-4">ID / IIN</th>
                 <th className="p-4">Ota-onasi & Aloqa</th>
                 <th className="p-4 text-center">Davomat</th>

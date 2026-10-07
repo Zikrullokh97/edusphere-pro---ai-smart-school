@@ -153,6 +153,9 @@ class PWAOfflineManager {
       status: record.status,
       date: record.date,
       className: record.className,
+      lessonId: record.lessonId,
+      classId: record.classId,
+      subjectId: record.subjectId,
       time: record.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       method: record.method || 'manual',
     });
@@ -187,6 +190,9 @@ class PWAOfflineManager {
         status: r.status,
         date: r.date,
         className: r.className,
+        lessonId: r.lessonId,
+        classId: r.classId,
+        subjectId: r.subjectId,
       })),
     });
 

@@ -12,7 +12,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { UserRole, AppLanguage, UserProfile, NotificationItem } from '../../types';
-import { useI18n } from '../../lib/i18n';
+import { formatQuarter, useI18n } from '../../lib/i18n';
 import { User as FirebaseUser } from 'firebase/auth';
 
 interface NavbarProps {
@@ -50,8 +50,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSignOut,
 }) => {
   const t = useI18n(language);
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState('2026-2027 o\'quv yili');
-  const [selectedQuarter, setSelectedQuarter] = useState('1-chorak (01.09.2026 - 31.10.2026)');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState('2026-2027');
+  const [selectedQuarter, setSelectedQuarter] = useState('Q1');
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [showQuarterDropdown, setShowQuarterDropdown] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -60,12 +60,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const academicYears = ['2026-2027 o\'quv yili', '2025-2026 o\'quv yili'];
+  const academicYears = ['2026-2027', '2025-2026'];
   const quarters = [
-    '1-chorak (01.09.2026 - 31.10.2026)',
-    '2-chorak (12.11.2026 - 30.12.2026)',
-    '3-chorak (11.01.2027 - 20.03.2027)',
-    '4-chorak (01.04.2027 - 25.05.2027)',
+    { id: 'Q1' as const, dates: '01.09.2026 - 31.10.2026' },
+    { id: 'Q2' as const, dates: '12.11.2026 - 30.12.2026' },
+    { id: 'Q3' as const, dates: '11.01.2027 - 20.03.2027' },
+    { id: 'Q4' as const, dates: '01.04.2027 - 25.05.2027' },
   ];
 
   const languages = [
@@ -111,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex min-h-[38px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200"
           >
             <Calendar className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>{selectedAcademicYear}</span>
+            <span>{selectedAcademicYear} {t('academicYearLabel')}</span>
             <ChevronDown className="h-3 w-3 text-slate-400" />
           </button>
 
@@ -130,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span>{yr}</span>
+                  <span>{yr} {t('academicYearLabel')}</span>
                   {selectedAcademicYear === yr && <Check className="h-3.5 w-3.5" />}
                 </button>
               ))}
@@ -148,7 +148,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex min-h-[38px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200"
           >
             <CalendarDays className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>{selectedQuarter}</span>
+            <span>{formatQuarter(selectedQuarter, language)} ({quarters.find((q) => q.id === selectedQuarter)?.dates})</span>
             <ChevronDown className="h-3 w-3 text-slate-400" />
           </button>
 
@@ -156,19 +156,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="absolute right-0 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-800 dark:bg-slate-900 z-50 animate-in zoom-in-95">
               {quarters.map((q) => (
                 <button
-                  key={q}
+                  key={q.id}
                   onClick={() => {
-                    setSelectedQuarter(q);
+                    setSelectedQuarter(q.id);
                     setShowQuarterDropdown(false);
                   }}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-medium ${
-                    selectedQuarter === q
+                    selectedQuarter === q.id
                       ? 'bg-indigo-50 font-bold text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400'
                       : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span>{q}</span>
-                  {selectedQuarter === q && <Check className="h-3.5 w-3.5" />}
+                  <span>{formatQuarter(q.id, language)} ({q.dates})</span>
+                  {selectedQuarter === q.id && <Check className="h-3.5 w-3.5" />}
                 </button>
               ))}
             </div>
@@ -181,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="notifications-bell-btn"
             onClick={() => setShowNotifMenu(!showNotifMenu)}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50 text-slate-600 transition-all hover:bg-slate-100 active:scale-95 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
-            title="Bildirishnomalar"
+            title={t('notificationTitle')}
           >
             <Bell className="h-4 w-4" />
             <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white shadow-xs">
@@ -192,12 +192,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {showNotifMenu && (
             <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900 z-50">
               <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">Bildirishnomalar</span>
-                <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400">{unreadCount} ta o‘qilmagan</span>
+                <span className="text-xs font-bold text-slate-900 dark:text-white">{t('notificationTitle')}</span>
+                <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400">{unreadCount} {t('unreadNotifications')}</span>
               </div>
               <div className="max-h-64 space-y-1.5 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-400">Bildirishnomalar mavjud emas</div>
+                  <div className="py-6 text-center text-xs text-slate-400">{t('noNotifications')}</div>
                 ) : (
                   notifications.map((n) => (
                     <div
@@ -227,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="language-switcher-btn"
             onClick={() => setShowLangMenu(!showLangMenu)}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50 text-slate-600 transition-all hover:bg-slate-100 active:scale-95 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
-            title="Tilni tanlash"
+            title={t('languageSelector')}
           >
             <Globe className="h-4 w-4" />
           </button>
@@ -263,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onSignOut}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50 text-rose-600 transition-all hover:bg-rose-50 hover:border-rose-200 active:scale-95 dark:border-slate-800 dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/50"
-            title="Tizimdan chiqish"
+            title={t('signOutButton')}
           >
             <LogOut className="h-4 w-4" />
           </button>

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserRole, AppLanguage, UserProfile, NotificationItem, AILessonPlan, ScheduleSlot, TeacherRecord } from './types';
-import { MOCK_NOTIFICATIONS, DEMO_USERS, MOCK_TEACHERS, CURRENT_SCHOOL } from './data/mockData';
+
 import { useI18n } from './lib/i18n';
 import {
   auth,
@@ -24,39 +24,44 @@ import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { MobileDrawer } from './components/layout/MobileDrawer';
 import { PWAStatusBanner } from './components/common/PWAStatusBanner';
 import { CommandPalette } from './components/layout/CommandPalette';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { UsersManagement } from './components/admin/UsersManagement';
-import { TeacherDashboard } from './components/teacher/TeacherDashboard';
-import { ElectronicJournal } from './components/teacher/ElectronicJournal';
-import { DigitalClassroom } from './components/classroom/DigitalClassroom';
-import { AILessonGenerator } from './components/ai/AILessonGenerator';
-import { AttendanceManager } from './components/attendance/AttendanceManager';
-import { GradebookManager } from './components/gradebook/GradebookManager';
-import { HomeworkManager } from './components/homework/HomeworkManager';
-import { StudentDashboard } from './components/student/StudentDashboard';
-import { StudentAITutor } from './components/student/StudentAITutor';
-import { ParentPortal } from './components/parent/ParentPortal';
-import { StudentParentPortal } from './components/family/StudentParentPortal';
-import { ScheduleManager } from './components/schedule/ScheduleManager';
-import { AIAnalyticsView } from './components/analytics/AIAnalyticsView';
-import { ReportBuilder } from './components/reports/ReportBuilder';
-import { StudentsDirectory } from './components/students/StudentsDirectory';
-import { TeachersDirectory } from './components/teachers/TeachersDirectory';
-import { ClassesDirectory } from './components/classes/ClassesDirectory';
-import { SubjectsDirectory } from './components/subjects/SubjectsDirectory';
-import { AcademicYearsManager } from './components/academic/AcademicYearsManager';
-import { ParentsDirectory } from './components/admin/ParentsDirectory';
-import { AuditLogsViewer } from './components/admin/AuditLogsViewer';
-import { SecurityCenter } from './components/admin/SecurityCenter';
-import { SystemHealthMonitor } from './components/admin/SystemHealthMonitor';
-import { AnnouncementCenter } from './components/admin/AnnouncementCenter';
-import { LessonPlanReviewer } from './components/admin/LessonPlanReviewer';
-import { BackupManager } from './components/admin/BackupManager';
-import { SettingsManager } from './components/settings/SettingsManager';
-import { WorkspaceHub } from './components/workspace/WorkspaceHub';
-import { SchoolManagementHub } from './components/admin/SchoolManagementHub';
-import { AdminMonitoringHub } from './components/admin/AdminMonitoringHub';
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const UsersManagement = lazy(() => import('./components/admin/UsersManagement').then((m) => ({ default: m.UsersManagement })));
+const TeacherDashboard = lazy(() => import('./components/teacher/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard })));
+const ElectronicJournal = lazy(() => import('./components/teacher/ElectronicJournal').then((m) => ({ default: m.ElectronicJournal })));
+const DigitalClassroom = lazy(() => import('./components/classroom/DigitalClassroom').then((m) => ({ default: m.DigitalClassroom })));
+const AILessonGenerator = lazy(() => import('./components/ai/AILessonGenerator').then((m) => ({ default: m.AILessonGenerator })));
+const AttendanceManager = lazy(() => import('./components/attendance/AttendanceManager').then((m) => ({ default: m.AttendanceManager })));
+const GradebookManager = lazy(() => import('./components/gradebook/GradebookManager').then((m) => ({ default: m.GradebookManager })));
+const HomeworkManager = lazy(() => import('./components/homework/HomeworkManager').then((m) => ({ default: m.HomeworkManager })));
+const StudentDashboard = lazy(() => import('./components/student/StudentDashboard').then((m) => ({ default: m.StudentDashboard })));
+const StudentAITutor = lazy(() => import('./components/student/StudentAITutor').then((m) => ({ default: m.StudentAITutor })));
+const ParentPortal = lazy(() => import('./components/parent/ParentPortal').then((m) => ({ default: m.ParentPortal })));
+const StudentParentPortal = lazy(() => import('./components/family/StudentParentPortal').then((m) => ({ default: m.StudentParentPortal })));
+const ScheduleManager = lazy(() => import('./components/schedule/ScheduleManager').then((m) => ({ default: m.ScheduleManager })));
+const AIAnalyticsView = lazy(() => import('./components/analytics/AIAnalyticsView').then((m) => ({ default: m.AIAnalyticsView })));
+const ReportBuilder = lazy(() => import('./components/reports/ReportBuilder').then((m) => ({ default: m.ReportBuilder })));
+const StudentsDirectory = lazy(() => import('./components/students/StudentsDirectory').then((m) => ({ default: m.StudentsDirectory })));
+const TeachersDirectory = lazy(() => import('./components/teachers/TeachersDirectory').then((m) => ({ default: m.TeachersDirectory })));
+const ClassesDirectory = lazy(() => import('./components/classes/ClassesDirectory').then((m) => ({ default: m.ClassesDirectory })));
+const SubjectsDirectory = lazy(() => import('./components/subjects/SubjectsDirectory').then((m) => ({ default: m.SubjectsDirectory })));
+const AcademicYearsManager = lazy(() => import('./components/academic/AcademicYearsManager').then((m) => ({ default: m.AcademicYearsManager })));
+const ParentsDirectory = lazy(() => import('./components/admin/ParentsDirectory').then((m) => ({ default: m.ParentsDirectory })));
+const AuditLogsViewer = lazy(() => import('./components/admin/AuditLogsViewer').then((m) => ({ default: m.AuditLogsViewer })));
+const SecurityCenter = lazy(() => import('./components/admin/SecurityCenter').then((m) => ({ default: m.SecurityCenter })));
+const SystemHealthMonitor = lazy(() => import('./components/admin/SystemHealthMonitor').then((m) => ({ default: m.SystemHealthMonitor })));
+const AnnouncementCenter = lazy(() => import('./components/admin/AnnouncementCenter').then((m) => ({ default: m.AnnouncementCenter })));
+const LessonPlanReviewer = lazy(() => import('./components/admin/LessonPlanReviewer').then((m) => ({ default: m.LessonPlanReviewer })));
+const BackupManager = lazy(() => import('./components/admin/BackupManager').then((m) => ({ default: m.BackupManager })));
+const SettingsManager = lazy(() => import('./components/settings/SettingsManager').then((m) => ({ default: m.SettingsManager })));
+const WorkspaceHub = lazy(() => import('./components/workspace/WorkspaceHub').then((m) => ({ default: m.WorkspaceHub })));
+const SchoolManagementHub = lazy(() => import('./components/admin/SchoolManagementHub').then((m) => ({ default: m.SchoolManagementHub })));
+const AdminMonitoringHub = lazy(() => import('./components/admin/AdminMonitoringHub').then((m) => ({ default: m.AdminMonitoringHub })));
+const CurriculumStandardsManager = lazy(() => import('./components/admin/CurriculumStandardsManager').then((m) => ({ default: m.CurriculumStandardsManager })));
+const TeacherResourceCenter = lazy(() => import('./components/teacher/TeacherResourceCenter').then((m) => ({ default: m.TeacherResourceCenter })));
+const ChildMasteryProgress = lazy(() => import('./components/parent/ChildMasteryProgress').then((m) => ({ default: m.ChildMasteryProgress })));
+const StandardsMasteryAnalytics = lazy(() => import('./components/analytics/StandardsMasteryAnalytics').then((m) => ({ default: m.StandardsMasteryAnalytics })));
 import { listSchoolData } from './lib/schoolRepository';
+import { ClassGroup, StudentRecord } from './types';
 
 export default function App() {
   const getInitialTab = (): string => {
@@ -91,16 +96,18 @@ export default function App() {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  // Local-only development session; never enabled in production builds.
+  const [isDevAuthenticated, setIsDevAuthenticated] = useState(false);
   const [customProfile, setCustomProfile] = useState<UserProfile | null>(null);
   const [selectedClassWorkspace, setSelectedClassWorkspace] = useState<string>('7-A');
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // Centralized Master Timetable & Teacher Workloads State
-  const [masterSchedule, setMasterSchedule] = useState<ScheduleSlot[]>(() => {
-    return generateWorkloadBasedSchedule(INITIAL_TEACHER_WORKLOADS, SCHOOL_CLASSES, 5).slots;
-  });
-  const [teacherWorkloads, setTeacherWorkloads] = useState<TeacherWorkload[]>(INITIAL_TEACHER_WORKLOADS);
-  const [teachers, setTeachers] = useState<TeacherRecord[]>(MOCK_TEACHERS);
+  const [masterSchedule, setMasterSchedule] = useState<ScheduleSlot[]>([]);
+  const [teacherWorkloads, setTeacherWorkloads] = useState<TeacherWorkload[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
+  const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
 
   // Load initial school data on mount
   useEffect(() => {
@@ -109,6 +116,12 @@ export default function App() {
     }).catch(() => undefined);
     listSchoolData<ScheduleSlot>('schedules').then((items) => {
       if (items.length > 0) setMasterSchedule(items);
+    }).catch(() => undefined);
+    listSchoolData<ClassGroup>('classes').then((items) => {
+      if (items.length > 0) setClasses(items);
+    }).catch(() => undefined);
+    listSchoolData<StudentRecord>('students').then((items) => {
+      if (items.length > 0) setStudents(items);
     }).catch(() => undefined);
 
     // If loaded with /login in URL, replace state with root to avoid stuck view
@@ -128,6 +141,12 @@ export default function App() {
         listSchoolData<ScheduleSlot>('schedules').then((items) => {
           if (items.length > 0) setMasterSchedule(items);
         }).catch(() => undefined);
+        listSchoolData<ClassGroup>('classes').then((items) => {
+          if (items.length > 0) setClasses(items);
+        }).catch(() => undefined);
+        listSchoolData<StudentRecord>('students').then((items) => {
+          if (items.length > 0) setStudents(items);
+        }).catch(() => undefined);
         listSchoolData<NotificationItem>('notifications').then((items) => {
           if (items.length > 0) setNotifications(items);
         }).catch(() => undefined);
@@ -139,15 +158,17 @@ export default function App() {
               setCurrentRole(profile.role);
             }
           } else {
-            // Fallback for new auth users
+            // Missing profiles must remain unprivileged until provisioned.
+            setCurrentRole('parent_student');
             setCustomProfile({
               id: user.uid,
               name: user.displayName || user.email?.split('@')[0] || 'Foydalanuvchi',
               email: user.email || 'user@edusphere.uz',
-              role: currentRole,
+              // Missing profiles must never inherit the default admin role.
+              role: 'parent_student',
               avatar: user.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
               schoolId: 'school-71-tashkent',
-              schoolName: CURRENT_SCHOOL.name,
+              schoolName: 'EduSphere School',
             });
           }
         } catch (err) {
@@ -215,14 +236,8 @@ export default function App() {
 
   const t = useI18n(language);
 
-  // Derive user profile based on role or active custom profile
-  const userProfiles: Record<UserRole, UserProfile> = {
-    admin: DEMO_USERS.admin,
-    teacher: DEMO_USERS.teacher,
-    parent_student: DEMO_USERS.student,
-  };
-
-  const currentUser = customProfile && customProfile.role === currentRole ? customProfile : userProfiles[currentRole];
+  // Production: the authenticated Firebase profile is the only user identity source.
+  const currentUser = customProfile && customProfile.role === currentRole ? customProfile : customProfile;
 
   // Whitelist of valid/allowed tabs for each role
   const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
@@ -287,7 +302,7 @@ export default function App() {
       case 'digital-classroom':
         return `${selectedClassWorkspace} ${t('navDigitalClassroom')}`;
       case 'ai-lesson-gen':
-        return 'AI Dars Rejasi Generatori';
+        return t('navAILessonGen');
       case 'ai-tutor':
         return t('navAITutor');
       case 'attendance':
@@ -295,9 +310,9 @@ export default function App() {
       case 'gradebook':
         return t('navGradebook') || 'Baholar jurnali';
       case 'electronic-journal':
-        return 'Elektron jurnal';
+        return t('navElectronicJournal');
       case 'lesson-plans':
-        return 'Dars rejalari (KTP)';
+        return t('navLessonPlans');
       case 'homework':
         return t('navHomework') || 'Uy vazifalari';
       case 'schedule':
@@ -311,25 +326,25 @@ export default function App() {
       case 'teachers':
         return t('navTeachers') || "O'qituvchilar";
       case 'parents':
-        return 'Ota-onalar';
+        return t('parentTerm');
       case 'users':
-        return 'Foydalanuvchilar';
+        return t('navUsers');
       case 'classes':
-        return "Sinflar Ro'yxati";
+        return t('classes');
       case 'subjects':
         return t('navSubjects') || 'Fanlar';
       case 'academic-years':
-        return "O'quv yili & choraklar";
+        return t('academicYears');
       case 'announcements':
-        return "E'lonlar markazi";
+        return t('navAnnouncementsCenter');
       case 'audit-logs':
-        return 'Audit jurnali';
+        return t('navSecurityAudit');
       case 'security':
-        return 'Xavfsizlik & Sessiyalar';
+        return t('navSecurityAudit');
       case 'system-health':
-        return 'Tizim salomatligi';
+        return t('sectionSystem');
       case 'backup-recovery':
-        return 'Zaxira va tiklash';
+        return t('navSecurity');
       case 'workspace':
         return t('navWorkspace') || 'Google Workspace';
       case 'settings':
@@ -338,9 +353,9 @@ export default function App() {
         return t('navMyClasses') || 'Mening sinflarim';
       case 'student-parent':
       case 'parent-portal':
-        return 'Oila va o‘quvchi portali';
+        return t('navFamilyHub');
       case 'gamification':
-        return 'O‘quvchi yutuqlari va reyting';
+        return t('navGamification');
       default:
         return t('appName');
     }
@@ -387,6 +402,39 @@ export default function App() {
     setSelectedClassWorkspace('7-A');
     setCurrentTab('digital-classroom');
   };
+
+  // Production gate: no school workspace is rendered before Firebase authentication.
+  if (!firebaseUser && !isDevAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
+        <AuthModal
+          isOpen={true}
+          onClose={() => undefined}
+          language={language}
+          currentRole={currentRole}
+          onAuthSuccess={(role, userDisplayName, profile) => {
+            if (import.meta.env.DEV && localStorage.getItem('edusphere_auth_token')?.startsWith('dev-token-')) {
+              const devProfile: UserProfile = profile || {
+                id: 'local-dev-admin',
+                name: userDisplayName || 'Local Admin',
+                email: 'admin@localhost',
+                role,
+                avatar: '',
+                schoolId: 'school-71-tashkent',
+                schoolName: 'EduSphere Local Development',
+              };
+              setCustomProfile(devProfile);
+              setCurrentRole(role);
+              setCurrentTab(role === 'admin' ? 'dashboard' : role === 'teacher' ? 'my-classes' : 'student-parent');
+              setIsDevAuthenticated(true);
+              return;
+            }
+            void handleAuthSuccess();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC] text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100 overflow-x-hidden">
@@ -435,6 +483,7 @@ export default function App() {
           transition={{ duration: 0.2, ease: 'easeOut' }}
           className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 pb-20 md:pb-8"
         >
+          <Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm text-slate-500">Yuklanmoqda...</div>}>
           {/* Main Dashboard / Role Route */}
           {currentTab === 'dashboard' && (
             <>
@@ -554,6 +603,22 @@ export default function App() {
             />
           )}
 
+          {currentTab === 'curriculum-standards' && currentRole === 'admin' && (
+            <CurriculumStandardsManager language={language} />
+          )}
+
+          {currentTab === 'standards-analytics' && (currentRole === 'admin' || currentRole === 'teacher') && (
+            <StandardsMasteryAnalytics classes={classes} students={students} language={language} />
+          )}
+
+          {currentTab === 'teacher-resources' && (currentRole === 'teacher' || currentRole === 'admin') && (
+            <TeacherResourceCenter currentUser={currentUser} language={language} />
+          )}
+
+          {currentTab === 'mastery-progress' && (currentRole === 'parent_student' || currentRole === 'admin') && (
+            <ChildMasteryProgress student={students[0] || ({ id: 'stu-0001', name: 'Alisher Nurdinov', grade: '7-A' } as any)} language={language} />
+          )}
+
           {currentTab === 'monitoring' && currentRole === 'admin' && (
             <AdminMonitoringHub
               language={language}
@@ -573,6 +638,8 @@ export default function App() {
             <ClassesDirectory
               language={language}
               teachers={teachers}
+              currentRole={currentRole}
+              currentUser={currentUser}
               onNavigateTab={handleSelectTab}
             />
           )}
@@ -652,12 +719,12 @@ export default function App() {
           )}
 
           {currentTab === 'my-classes' && (currentRole === 'teacher' || currentRole === 'admin') && (
-            <TeacherDashboard
+            <ClassesDirectory
               language={language}
-              onNavigate={handleSelectTab}
-              onSelectClassWorkspace={setSelectedClassWorkspace}
-              masterSchedule={masterSchedule}
               teachers={teachers}
+              currentRole={currentRole}
+              currentUser={currentUser}
+              onNavigateTab={handleSelectTab}
             />
           )}
 
@@ -670,6 +737,7 @@ export default function App() {
               initialActiveSubTab="student"
             />
           )}
+          </Suspense>
         </motion.main>
       </div>
 

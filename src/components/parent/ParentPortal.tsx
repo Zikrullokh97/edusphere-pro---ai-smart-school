@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   UserCheck,
   Sparkles,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, StudentRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
 
 interface ParentPortalProps {
   language: AppLanguage;
@@ -23,8 +23,20 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({
   language,
 }) => {
   const t = useI18n(language);
-  const [selectedChild, setSelectedChild] = useState<StudentRecord>(MOCK_STUDENTS[0]); // Ali
+  const [selectedChild, setSelectedChild] = useState<StudentRecord>({} as StudentRecord);
   const [messageToTeacher, setMessageToTeacher] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    listSchoolData<StudentRecord>('students')
+      .then((children) => {
+        if (active && children.length > 0) setSelectedChild(children[0]);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const [sentMessage, setSentMessage] = useState(false);
 
   const handleSendMessage = () => {

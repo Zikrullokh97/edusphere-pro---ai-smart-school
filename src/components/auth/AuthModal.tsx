@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { UserRole, AppLanguage, UserProfile } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { signInWithEmail, registerWithEmail, signInWithGoogle, resetPassword } from '../../lib/firebase';
+import { signInWithEmail, registerWithEmail, signInWithGoogle, resetPassword, getUserProfileFromFirestore, saveUserProfileToFirestore } from '../../lib/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -51,10 +51,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUser = emailOrUsername.trim().toLowerCase();
-    const cleanPass = password.trim();
+    // Do not trim passwords: spaces may be part of a valid password.
+    const cleanPass = password;
 
     if (!cleanUser || !cleanPass) {
-      setErrorMessage(language === 'uz' ? 'Iltimos, login va parolni kiriting.' : 'Please enter login and password.');
+      setErrorMessage(t('authEnterCredentials'));
       return;
     }
 
@@ -87,16 +88,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           return;
         }
       } else if (response.status === 401 || response.status === 403) {
-        const errData = await response.json().catch(() => ({}));
-        setIsLoading(false);
-        setErrorMessage(errData.error || (language === 'uz' ? 'Login yoki parol noto‘g‘ri!' : 'Invalid login or password!'));
-        return;
+        // The legacy development login may not know Firebase-managed accounts.
+        // Continue to Firebase Auth instead of blocking valid Firebase credentials.
+        await response.json().catch(() => ({}));
       }
     } catch {
       // Backend request unreachable or offline fallback
     }
 
-    // 2. Dev / Test Fallback Credentials
+    // Production: authenticate only through Firebase Auth.
+    /*
     if (cleanPass === '123456') {
       const isTeacher = cleanUser.includes('teacher') || cleanUser.startsWith('tch-');
       const isParent = cleanUser.includes('parent') || cleanUser.includes('student') || cleanUser.startsWith('par-');
@@ -116,15 +117,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     // 3. Real Firebase Auth fallback
+    */
     try {
       const user = await signInWithEmail(cleanUser, cleanPass);
-      setSuccessMessage(language === 'uz' ? 'Muvaffaqiyatli kirdingiz!' : 'Login successful!');
+      let profile = await getUserProfileFromFirestore(user.uid);
+
+      // Recover accounts whose Firebase Auth user was created but whose profile
+      // write failed during an earlier registration attempt. New users stay unprivileged.
+      if (!profile) {
+        await saveUserProfileToFirestore({
+          userId: user.uid,
+          email: user.email || cleanUser,
+          displayName: user.displayName || user.email?.split('@')[0] || 'EduSphere User',
+          role: 'parent_student',
+        });
+        profile = await getUserProfileFromFirestore(user.uid);
+      }
+
+      if (!profile) {
+        throw new Error('PROFILE_UNAVAILABLE');
+      }
+
+      setSuccessMessage(t('authSuccess'));
       setTimeout(() => {
-        onAuthSuccess(selectedRole, user.displayName || user.email || undefined);
+        onAuthSuccess(profile!.role, profile!.name || user.displayName || user.email || undefined, profile!);
         onClose();
       }, 500);
-    } catch {
-      setErrorMessage(language === 'uz' ? 'Login yoki parol noto‘g‘ri!' : 'Invalid login or password!');
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      if (code === 'auth/network-request-failed') {
+        setErrorMessage(language === 'uz' ? 'Internet yoki Firebase ulanishini tekshiring.' : 'Check your internet connection and Firebase configuration.');
+      } else if (code === 'auth/too-many-requests') {
+        setErrorMessage(language === 'uz' ? 'Urinishlar juda ko‘p. Birozdan keyin qayta urinib ko‘ring.' : 'Too many attempts. Please try again later.');
+      } else if (err?.message === 'PROFILE_UNAVAILABLE') {
+        setErrorMessage(language === 'uz' ? 'Profilni yuklab bo‘lmadi. Firebase Firestore ruxsatlarini tekshiring.' : 'Could not load the user profile. Check Firestore permissions.');
+      } else {
+        setErrorMessage(t('authInvalidCredentials'));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -133,11 +162,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailOrUsername.trim() || !password.trim() || !fullName.trim()) {
-      setErrorMessage(language === 'uz' ? 'Iltimos, barcha maydonlarni to‘ldiring.' : 'Please fill all fields.');
+      setErrorMessage(t('authFillAll'));
       return;
     }
     if (password.length < 6) {
-      setErrorMessage(language === 'uz' ? 'Parol kamida 6 ta belgidan iborat bo‘lishi lozim.' : 'Password must be at least 6 characters.');
+      setErrorMessage(t('authPasswordMin'));
       return;
     }
 
@@ -148,22 +177,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const user = await registerWithEmail(
         emailOrUsername.trim(),
-        password.trim(),
+        password,
         fullName.trim(),
         selectedRole
       );
-      setSuccessMessage(language === 'uz' ? 'Ro‘yxatdan muvaffaqiyatli o‘tdingiz!' : 'Registration successful!');
+      setSuccessMessage(t('authRegisterSuccess'));
+      const profile = await getUserProfileFromFirestore(user.uid);
+      if (!profile) {
+        throw new Error('PROFILE_UNAVAILABLE');
+      }
       setTimeout(() => {
-        onAuthSuccess(selectedRole, user.displayName || fullName);
+        // Public self-registration must never grant admin/teacher privileges.
+        onAuthSuccess(profile.role, profile.name || user.displayName || fullName, profile);
         onClose();
       }, 700);
     } catch (err: any) {
-      // Mock registration fallback if offline
-      setSuccessMessage(language === 'uz' ? 'Ro‘yxatdan muvaffaqiyatli o‘tdingiz!' : 'Registration successful!');
-      setTimeout(() => {
-        onAuthSuccess(selectedRole, fullName);
-        onClose();
-      }, 700);
+      const code = String(err?.code || '');
+      if (code === 'auth/email-already-in-use') {
+        setErrorMessage(language === 'uz' ? 'Bu email allaqachon ro‘yxatdan o‘tgan. Kirish bo‘limidan foydalaning.' : 'This email is already registered. Please sign in.');
+      } else if (code === 'auth/invalid-email') {
+        setErrorMessage(language === 'uz' ? 'Email manzili noto‘g‘ri.' : 'The email address is invalid.');
+      } else if (code === 'auth/weak-password') {
+        setErrorMessage(language === 'uz' ? 'Parol juda sodda. Kamida 6 ta belgidan foydalaning.' : 'Password is too weak. Use at least 6 characters.');
+      } else if (code === 'auth/network-request-failed') {
+        setErrorMessage(language === 'uz' ? 'Internet yoki Firebase ulanishini tekshiring.' : 'Check your internet connection and Firebase configuration.');
+      } else if (err?.message === 'PROFILE_UNAVAILABLE' || code === 'permission-denied') {
+        setErrorMessage(language === 'uz' ? 'Hisob yaratildi, ammo profil saqlanmadi. Firebase Firestore qoidalarini tekshirish kerak.' : 'The account was created, but its profile could not be saved. Check Firestore rules.');
+      } else {
+        setErrorMessage(t('authRegisterFailed'));
+      }
+      return;
     } finally {
       setIsLoading(false);
     }
@@ -172,16 +215,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailOrUsername.trim()) {
-      setErrorMessage(language === 'uz' ? 'Elektron pochtangizni kiriting.' : 'Please enter your email.');
+      setErrorMessage(t('authEmailRequired'));
       return;
     }
     setIsLoading(true);
     setErrorMessage(null);
     try {
       await resetPassword(emailOrUsername.trim());
-      setSuccessMessage(language === 'uz' ? 'Parolni tiklash havolasi yuborildi!' : 'Password reset link sent!');
+      setSuccessMessage(t('authResetSent'));
     } catch {
-      setSuccessMessage(language === 'uz' ? 'Parolni tiklash havolasi yuborildi!' : 'Password reset link sent!');
+      setSuccessMessage(t('authResetSent'));
     } finally {
       setIsLoading(false);
     }
@@ -195,20 +238,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onAuthSuccess('admin', result.user.displayName || 'Google User');
       onClose();
     } catch {
-      setErrorMessage(language === 'uz' ? 'Google orqali kirishda xatolik yuz berdi.' : 'Google sign-in failed.');
+      setErrorMessage(t('authGoogleFailed'));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleFacebookSignIn = () => {
-    // Mock Facebook auth
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      onAuthSuccess('parent_student', 'Facebook User');
-      onClose();
-    }, 600);
+    setErrorMessage(t('authFacebookUnavailable'));
   };
 
   return (
@@ -234,7 +271,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <button
           onClick={onClose}
           className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          aria-label="Close"
+          aria-label={t('authClose')}
         >
           <X className="h-4 w-4" />
         </button>
@@ -250,17 +287,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="mt-4 text-center">
           <h2 className="text-2xl font-black tracking-tight text-slate-900">
             {isForgotPassword
-              ? (language === 'uz' ? 'Parolni Tiklash' : 'Reset Password')
+              ? t('tabForgot')
               : isSignUp
-              ? 'Sign Up'
-              : 'Login'}
+              ? t('tabSignUp')
+              : t('tabSignIn')}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             {isForgotPassword
-              ? (language === 'uz' ? 'Pochtani kiriting, biz havola yuboramiz' : 'Enter email to receive reset link')
+              ? t('authForgotSubtitle')
               : isSignUp
-              ? (language === 'uz' ? 'EduSphere Pro platformasida yangi hisob yarating' : 'Create a new account on EduSphere Pro')
-              : (language === 'uz' ? 'EduSphere Pro maktab boshqaruv tizimiga kiring' : 'Sign in to EduSphere Pro platform')}
+              ? t('authSignUpSubtitle')
+              : t('authSignInSubtitle')}
           </p>
         </div>
 
@@ -284,7 +321,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <form onSubmit={handleForgotPassword} className="mt-6 space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Email
+                {t('authEmailOnlyLabel')}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
@@ -292,7 +329,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   type="email"
                   value={emailOrUsername}
                   onChange={(e) => setEmailOrUsername(e.target.value)}
-                  placeholder="nom@maktab.uz"
+                  placeholder={t('authEmailPlaceholder')}
                   className="w-full rounded-xl bg-gray-50 border border-gray-200 pl-10 pr-4 py-3 text-sm text-slate-900 focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition-all"
                   required
                 />
@@ -304,7 +341,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               disabled={isLoading}
               className="w-full mt-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-purple-600/30 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              {isLoading ? 'Yuborilmoqda...' : 'Tiklash havolasini yuborish'}
+              {isLoading ? t('authSending') : t('authResetButton')}
             </button>
 
             <div className="text-center pt-2">
@@ -313,7 +350,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 onClick={() => setIsForgotPassword(false)}
                 className="text-xs font-bold text-indigo-600 hover:text-indigo-700"
               >
-                ← Kirishga qaytish
+                ← {t('authForgotBack')}
               </button>
             </div>
           </form>
@@ -321,7 +358,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <form onSubmit={handleRegister} className="mt-5 space-y-3.5">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {language === 'uz' ? 'To‘liq ism-familiya' : 'Full Name'}
+                {t('authFullNameLabel')}
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
@@ -329,7 +366,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Ali Valiyev"
+                  placeholder={t('authNamePlaceholder')}
                   className="w-full rounded-xl bg-gray-50 border border-gray-200 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition-all"
                   required
                 />
@@ -338,7 +375,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Email
+                {t('authEmailOnlyLabel')}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
@@ -346,7 +383,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   type="email"
                   value={emailOrUsername}
                   onChange={(e) => setEmailOrUsername(e.target.value)}
-                  placeholder="ali@edusphere.school"
+                  placeholder={t('authEmailPlaceholder')}
                   className="w-full rounded-xl bg-gray-50 border border-gray-200 pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition-all"
                   required
                 />
@@ -355,7 +392,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {language === 'uz' ? 'Parol' : 'Password'}
+                {t('authPasswordLabel')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
@@ -382,14 +419,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               disabled={isLoading}
               className="w-full mt-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-3 text-sm font-bold text-white shadow-lg shadow-purple-600/30 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              {isLoading ? 'Yuklanmoqda...' : 'Sign Up'}
+              {isLoading ? t('authLoading') : t('signUpButton')}
             </button>
           </form>
         ) : (
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Email / Login
+                {t('authEmailLabel')}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
@@ -397,7 +434,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   type="text"
                   value={emailOrUsername}
                   onChange={(e) => setEmailOrUsername(e.target.value)}
-                  placeholder="admin yoki email"
+                  placeholder={t('authLoginPlaceholder')}
                   className="w-full rounded-xl bg-gray-50 border border-gray-200 pl-10 pr-4 py-3 text-sm text-slate-900 focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 focus:outline-none transition-all"
                   required
                 />
@@ -407,14 +444,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-slate-700">
-                  Password
+                  {t('authPasswordLabel')}
                 </label>
                 <button
                   type="button"
                   onClick={() => setIsForgotPassword(true)}
                   className="text-xs font-semibold text-purple-600 hover:text-purple-700"
                 >
-                  Forgot password?
+                  {t('authForgotLabel')}
                 </button>
               </div>
               <div className="relative">
@@ -443,7 +480,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               disabled={isLoading}
               className="w-full mt-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-purple-600/30 hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <span>{isLoading ? 'Yuklanmoqda...' : 'Login'}</span>
+              <span>{isLoading ? t('authLoading') : t('signInButton')}</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
@@ -455,7 +492,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="relative flex items-center justify-center">
               <div className="w-full border-t border-slate-200"></div>
               <span className="bg-white px-3 text-xs text-slate-400 font-medium whitespace-nowrap">
-                or continue with
+                {t('orContinueWith')}
               </span>
               <div className="w-full border-t border-slate-200"></div>
             </div>
@@ -467,7 +504,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="button"
                 onClick={handleGoogleSignIn}
                 className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white shadow-xs hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all"
-                title="Google orqali kirish"
+                title={t('authGoogleTitle')}
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path
@@ -494,7 +531,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="button"
                 onClick={handleFacebookSignIn}
                 className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white shadow-xs hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all"
-                title="Facebook orqali kirish"
+                title={t('authFacebookTitle')}
               >
                 <svg className="h-5 w-5 fill-[#1877F2]" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -508,7 +545,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="mt-6 text-center pt-2">
           {isSignUp ? (
             <p className="text-xs text-slate-500">
-              Already have an account?{' '}
+              {t('authAlreadyAccount')}{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -518,12 +555,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 }}
                 className="font-bold text-purple-600 hover:text-purple-700"
               >
-                Log In &gt;
+                {t('tabSignIn')} &gt;
               </button>
             </p>
           ) : (
             <p className="text-xs text-slate-500">
-              Not registered yet?{' '}
+              {t('authNotRegistered')}{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -533,7 +570,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 }}
                 className="font-bold text-purple-600 hover:text-purple-700"
               >
-                Sign Up &gt;
+                {t('tabSignUp')} &gt;
               </button>
             </p>
           )}

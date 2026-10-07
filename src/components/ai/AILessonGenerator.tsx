@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, LessonPlan } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_LESSON_PLAN } from '../../data/mockData';
+
 import { authenticatedFetch } from '../../lib/api';
 import { ALL_SCHOOL_CLASSES } from '../../lib/scheduleGenerator';
 
@@ -47,7 +47,7 @@ export const AILessonGenerator: React.FC<AILessonGeneratorProps> = ({
 
   // AI Output state
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedPlan, setGeneratedPlan] = useState<LessonPlan | null>(MOCK_LESSON_PLAN);
+  const [generatedPlan, setGeneratedPlan] = useState<LessonPlan | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleGenerate = async () => {
@@ -74,8 +74,7 @@ export const AILessonGenerator: React.FC<AILessonGeneratorProps> = ({
         setGeneratedPlan(plan);
       }
     } catch {
-      // Fallback to rich mock plan
-      setGeneratedPlan(MOCK_LESSON_PLAN);
+      setGeneratedPlan(null);
     } finally {
       setIsGenerating(false);
     }

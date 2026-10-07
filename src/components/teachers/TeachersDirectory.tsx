@@ -27,12 +27,13 @@ import {
   FolderArchive,
   User,
 } from 'lucide-react';
-import { AppLanguage, TeacherRecord, ScheduleSlot, StudentRecord } from '../../types';
+import { AppLanguage, TeacherRecord, ScheduleSlot, StudentRecord, SchoolDocument } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_TEACHERS, MOCK_STUDENTS, MOCK_DOCUMENTS } from '../../data/mockData';
+
 import { TeacherWorkload, INITIAL_TEACHER_WORKLOADS } from '../../lib/scheduleGenerator';
 import { AddTeacherWizardModal } from './AddTeacherWizardModal';
 import { TeacherEditModal } from './TeacherEditModal';
+import { TeacherFaceEnrollmentModal } from './TeacherFaceEnrollmentModal';
 import { listSchoolData, createSchoolData } from '../../lib/schoolRepository';
 
 
@@ -79,6 +80,8 @@ export const TeachersDirectory: React.FC<TeachersDirectoryProps> = ({
   const t = useI18n(language);
   const [internalTeachers, setInternalTeachers] = useState<TeacherRecord[]>([]);
   const [schedules, setSchedules] = useState<ScheduleSlot[]>([]);
+  const [schoolStudents, setSchoolStudents] = useState<StudentRecord[]>([]);
+  const [schoolDocuments, setSchoolDocuments] = useState<SchoolDocument[]>([]);
   const teachers = useMemo(() => {
     return sortTeachersNaturally(propTeachers || internalTeachers);
   }, [propTeachers, internalTeachers]);
@@ -92,6 +95,8 @@ export const TeachersDirectory: React.FC<TeachersDirectoryProps> = ({
     listSchoolData<ScheduleSlot>('schedules').then((slots) => {
       if (slots && slots.length > 0) setSchedules(slots);
     }).catch(() => undefined);
+    listSchoolData<StudentRecord>('students').then(setSchoolStudents).catch(() => undefined);
+    listSchoolData<SchoolDocument>('documents').then(setSchoolDocuments).catch(() => undefined);
   }, [propTeachers]);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,6 +107,7 @@ export const TeachersDirectory: React.FC<TeachersDirectoryProps> = ({
   const [editingTeacher, setEditingTeacher] = useState<TeacherRecord | null>(null);
   const [modalTab, setModalTab] = useState<'profile' | 'students' | 'documents'>('profile');
   const [modalClassFilter, setModalClassFilter] = useState<string>('');
+  const [faceEnrollmentTeacher, setFaceEnrollmentTeacher] = useState<TeacherRecord | null>(null);
 
   const handleTeacherSaved = (saved: TeacherRecord) => {
     if (propOnUpdateTeacher) {
@@ -549,16 +555,16 @@ export const TeachersDirectory: React.FC<TeachersDirectoryProps> = ({
         // Compute students to display
         let displayedStudents: StudentRecord[] = [];
         if (isHomeroom && modalClassFilter === selectedTeacherForDetail.homeroomClass) {
-          displayedStudents = MOCK_STUDENTS.filter(
+          displayedStudents = schoolStudents.filter(
             (s) => s.grade === selectedTeacherForDetail.homeroomClass
           );
         } else {
           const targetClass = modalClassFilter || selectedTeacherForDetail.assignedClasses[0] || '7-A';
-          displayedStudents = MOCK_STUDENTS.filter((s) => s.grade === targetClass);
+          displayedStudents = schoolStudents.filter((s) => s.grade === targetClass);
         }
 
         // Relevant documents
-        const teacherDocs = MOCK_DOCUMENTS.filter(
+        const teacherDocs = schoolDocuments.filter(
           (d) =>
             (d.gradeLevel && (d.gradeLevel === selectedTeacherForDetail.homeroomClass || selectedTeacherForDetail.assignedClasses.includes(d.gradeLevel))) ||
             (d.subject && d.subject.toLowerCase() === selectedTeacherForDetail.subject?.toLowerCase()) ||
@@ -882,6 +888,13 @@ export const TeachersDirectory: React.FC<TeachersDirectoryProps> = ({
                       Dars Jadvalini Ko‘rish
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setFaceEnrollmentTeacher(selectedTeacherForDetail)}
+                    className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
+                  >
+                    Face ID ro‘yxatga olish
+                  </button>
                 </div>
               </div>
             </div>
@@ -896,6 +909,15 @@ export const TeachersDirectory: React.FC<TeachersDirectoryProps> = ({
         language={language}
         onAddTeacher={handleCreateTeacher}
       />
+      {faceEnrollmentTeacher && (
+        <TeacherFaceEnrollmentModal
+          isOpen
+          teacherId={faceEnrollmentTeacher.id}
+          teacherName={faceEnrollmentTeacher.name}
+          onClose={() => setFaceEnrollmentTeacher(null)}
+          onSuccess={() => setFaceEnrollmentTeacher(null)}
+        />
+      )}
       {editingTeacher && <TeacherEditModal teacher={editingTeacher} onClose={() => setEditingTeacher(null)} onSaved={(saved) => {
         setInternalTeachers((current) => current.map((teacher) => teacher.id === saved.id ? saved : teacher));
         propOnUpdateTeacher?.(saved);

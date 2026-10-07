@@ -52,6 +52,8 @@ export const AdminMonitoringHub: React.FC<AdminMonitoringHubProps> = ({
   const [classRankings, setClassRankings] = useState<ClassRankingItem[]>([]);
   const [methodology, setMethodology] = useState<Record<string, string>>({});
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState<any[]>([]);
+  const [cameraDevices, setCameraDevices] = useState<any[]>([]);
   const [teachersList, setTeachersList] = useState<TeacherRecord[]>([]);
 
   // Filters
@@ -64,10 +66,12 @@ export const AdminMonitoringHub: React.FC<AdminMonitoringHubProps> = ({
   const fetchRankingsAndMonitoring = async () => {
     setLoading(true);
     try {
-      const [rankRes, attRes, tchRes] = await Promise.all([
+      const [rankRes, attRes, tchRes, teacherAttRes, cameraRes] = await Promise.all([
         authenticatedFetch('/api/admin/monitoring/rankings'),
         authenticatedFetch('/api/attendance'),
         authenticatedFetch('/api/data/teachers'),
+        authenticatedFetch('/api/teacher-attendance'),
+        authenticatedFetch('/api/biometric/cameras'),
       ]);
 
       if (rankRes.ok) {
@@ -84,6 +88,20 @@ export const AdminMonitoringHub: React.FC<AdminMonitoringHubProps> = ({
         const attData = await attRes.json();
         if (attData.success && Array.isArray(attData.items)) {
           setAttendanceRecords(attData.items);
+        }
+      }
+
+      if (teacherAttRes.ok) {
+        const teacherAttData = await teacherAttRes.json();
+        if (teacherAttData.success && Array.isArray(teacherAttData.items)) {
+          setTeacherAttendanceRecords(teacherAttData.items);
+        }
+      }
+
+      if (cameraRes.ok) {
+        const cameraData = await cameraRes.json();
+        if (cameraData.success && Array.isArray(cameraData.items)) {
+          setCameraDevices(cameraData.items);
         }
       }
 
@@ -357,7 +375,13 @@ export const AdminMonitoringHub: React.FC<AdminMonitoringHubProps> = ({
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-              {teachersList.slice(0, 15).map((teacher) => (
+              {teachersList.slice(0, 15).map((teacher) => {
+                const attendance = teacherAttendanceRecords.find((record) =>
+                  String(record.teacherId) === String(teacher.id) ||
+                  String(record.teacherId) === String((teacher as any).teacherId)
+                );
+                const cameraVerified = attendance?.method === 'face_recognition';
+                return (
                 <div
                   key={teacher.id}
                   className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50 flex items-center justify-between"
@@ -374,11 +398,46 @@ export const AdminMonitoringHub: React.FC<AdminMonitoringHubProps> = ({
                     </span>
                   </div>
 
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
-                    O‘z vaqtida faol
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold shrink-0 ${
+                    attendance
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                  }`}>
+                    {attendance
+                      ? (cameraVerified ? 'Face ID tasdiqlangan' : 'Qayd etilgan')
+                      : 'Bugun qayd yo‘q'}
                   </span>
                 </div>
-              ))}
+                );
+              })}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Kamera holati</h3>
+                  <p className="text-[10px] text-slate-400">Face ID va liveness qurilmalari</p>
+                </div>
+                <span className="text-[10px] font-bold text-slate-500">
+                  {cameraDevices.filter((camera) => camera.status === 'online').length}/{cameraDevices.length} online
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {cameraDevices.slice(0, 8).map((camera) => (
+                  <div key={camera.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 dark:bg-slate-900">
+                    <div className="min-w-0">
+                      <span className="block truncate text-[11px] font-bold text-slate-800 dark:text-slate-200">{camera.name}</span>
+                      <span className="block truncate text-[9px] text-slate-400">{camera.location}</span>
+                    </div>
+                    <span className={`ml-2 h-2 w-2 shrink-0 rounded-full ${
+                      camera.status === 'online' ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`} />
+                  </div>
+                ))}
+                {cameraDevices.length === 0 && (
+                  <span className="text-[10px] font-semibold text-slate-400">Hozircha kamera qurilmalari ro‘yxatdan o‘tmagan.</span>
+                )}
+              </div>
             </div>
           </div>
         </div>

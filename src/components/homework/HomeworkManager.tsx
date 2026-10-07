@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, HomeworkAssignment, StudentSubmission, UserRole, UserProfile } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_HOMEWORKS } from '../../data/mockData';
+
 import { pwaManager } from '../../lib/pwa';
 import { listSchoolData, createSchoolData, updateSchoolData, archiveSchoolData } from '../../lib/schoolRepository';
 
@@ -35,6 +35,16 @@ interface HomeworkManagerProps {
   currentUser?: UserProfile;
 }
 
+const EMPTY_HOMEWORK: HomeworkAssignment = {
+  id: '',
+  title: '',
+  subject: '',
+  className: '',
+  dueDate: '',
+  submittedCount: 0,
+  submissions: [],
+};
+
 export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
   language,
   isStudent = false,
@@ -44,7 +54,7 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
   const t = useI18n(language);
   const isParent = false;
   const effectiveIsStudent = isStudent || currentRole === 'parent_student';
-  const [assignments, setAssignments] = useState<HomeworkAssignment[]>(MOCK_HOMEWORKS);
+  const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
   const visibleAssignments = useMemo(() => {
     if (currentRole === 'admin') {
       return assignments;
@@ -66,10 +76,8 @@ export const HomeworkManager: React.FC<HomeworkManagerProps> = ({
     return assignments;
   }, [assignments, currentRole, currentUser]);
 
-  const [selectedAssignment, setSelectedAssignment] = useState<HomeworkAssignment>(MOCK_HOMEWORKS[0]);
-  const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(
-    MOCK_HOMEWORKS[0]?.submissions[0] || null
-  );
+  const [selectedAssignment, setSelectedAssignment] = useState<HomeworkAssignment>(EMPTY_HOMEWORK);
+  const [selectedSubmission, setSelectedSubmission] = useState<StudentSubmission | null>(null);
 
   useEffect(() => {
     if (visibleAssignments.length > 0 && !visibleAssignments.some((a) => a.id === selectedAssignment?.id)) {

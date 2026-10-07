@@ -1,9 +1,8 @@
 // IndexedDB Local Storage & Offline Persistence Engine for EduSphere Pro
 import { AttendanceRecord, GradeEntry } from '../types';
-import { MOCK_ATTENDANCE, MOCK_GRADES } from '../data/mockData';
 
 const DB_NAME = 'EduSphere_Pro_DB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface DBAttendanceRecord extends AttendanceRecord {
   syncStatus?: 'synced' | 'pending';
@@ -56,6 +55,12 @@ class EduSphereIndexedDB {
           attendanceStore.createIndex('by_date', 'date', { unique: false });
           attendanceStore.createIndex('by_student', 'studentId', { unique: false });
           attendanceStore.createIndex('by_syncStatus', 'syncStatus', { unique: false });
+          attendanceStore.createIndex('by_lesson', 'lessonId', { unique: false });
+        } else {
+          const attendanceStore = (event.target as IDBOpenDBRequest).transaction?.objectStore('attendance');
+          if (attendanceStore && !attendanceStore.indexNames.contains('by_lesson')) {
+            attendanceStore.createIndex('by_lesson', 'lessonId', { unique: false });
+          }
         }
 
         // 2. Grades Object Store
@@ -97,65 +102,15 @@ class EduSphereIndexedDB {
     return this.dbPromise;
   }
 
-  // Pre-populate IndexedDB with standard school baseline if empty
-  private async seedInitialData(db: IDBDatabase): Promise<void> {
-    try {
-      const tx = db.transaction(['attendance', 'grades', 'metadata'], 'readwrite');
-      const attendanceStore = tx.objectStore('attendance');
-      const gradesStore = tx.objectStore('grades');
-      const metaStore = tx.objectStore('metadata');
-
-      const countReq = attendanceStore.count();
-      countReq.onsuccess = () => {
-        if (countReq.result === 0) {
-          // Seed Attendance
-          MOCK_ATTENDANCE.forEach((rec) => {
-            const item: DBAttendanceRecord = {
-              ...rec,
-              id: rec.id || `att-${rec.studentId}-${rec.date || '2026-08-20'}`,
-              syncStatus: 'synced',
-              lastModified: Date.now(),
-            };
-            attendanceStore.put(item);
-          });
-
-          // Seed Grades for various classes
-          const classes = ['7-A', '8-B', '9-A', '10-B'];
-          const subjects = ['Mathematics', 'Physics', 'Computer Science', 'English'];
-
-          classes.forEach((cls) => {
-            subjects.forEach((subj) => {
-              MOCK_GRADES.forEach((g) => {
-                const gradeId = `grd-${g.studentId}-${cls}-${subj.replace(/\s+/g, '')}`;
-                const item: DBGradeEntry = {
-                  ...g,
-                  id: gradeId,
-                  className: cls,
-                  subject: subj,
-                  syncStatus: 'synced',
-                  lastModified: Date.now(),
-                };
-                gradesStore.put(item);
-              });
-            });
-          });
-
-          // Metadata initialized
-          metaStore.put({
-            key: 'last_seed_time',
-            value: Date.now(),
-            version: '2.0.0',
-          });
-        }
-      };
-    } catch (err) {
-      console.warn('Seed initial data error (non-fatal):', err);
-    }
+  // Production rule: IndexedDB is cache/offline persistence only.
+  // It is never seeded with demo records; canonical data comes from the authenticated API.
+  private async seedInitialData(_db: IDBDatabase): Promise<void> {
+    return Promise.resolve();
   }
 
   // ==================== ATTENDANCE METHODS ====================
 
-  public async getAttendanceRecords(className?: string, date?: string): Promise<DBAttendanceRecord[]> {
+  public async getAttendanceRecords(className?: string, date?: string, lessonId?: string): Promise<DBAttendanceRecord[]> {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction('attendance', 'readonly');
@@ -169,6 +124,9 @@ class EduSphereIndexedDB {
         }
         if (date) {
           results = results.filter((r) => r.date === date);
+        }
+        if (lessonId) {
+          results = results.filter((r) => r.lessonId === lessonId);
         }
         resolve(results);
       };
@@ -237,21 +195,6 @@ class EduSphereIndexedDB {
         results = results.filter(
           (g) => (g.className || '7-A') === className && (g.subject || 'Mathematics') === subject
         );
-
-        // Fallback: If no records yet for this combo, populate from base mock
-        if (results.length === 0) {
-          const seeded = MOCK_GRADES.map((g) => ({
-            ...g,
-            id: `grd-${g.studentId}-${className}-${subject.replace(/\s+/g, '')}`,
-            className,
-            subject,
-            syncStatus: 'synced' as const,
-            lastModified: Date.now(),
-          }));
-          this.saveBatchGrades(seeded, 'synced').catch(console.warn);
-          resolve(seeded);
-          return;
-        }
 
         resolve(results);
       };

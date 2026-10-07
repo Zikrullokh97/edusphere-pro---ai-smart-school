@@ -48,7 +48,8 @@ import {
   fetchRecentGmailMessages,
   GoogleContactItem,
 } from '../../lib/googleWorkspace';
-import { MOCK_STUDENTS, MOCK_ATTENDANCE, MOCK_GRADE_ENTRIES } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
+import { StudentRecord, AttendanceEntry, GradeEntry } from '../../types';
 import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 import { User as FirebaseUser } from 'firebase/auth';
 
@@ -62,6 +63,27 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'sheets' | 'docs' | 'contacts' | 'gmail' | 'firebase'>('sheets');
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
+  const [gradeEntries, setGradeEntries] = useState<GradeEntry[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      listSchoolData<StudentRecord>('students'),
+      listSchoolData<AttendanceEntry>('attendance'),
+      listSchoolData<GradeEntry>('grades'),
+    ]).then(([studentsData, attendanceData, gradeData]) => {
+      if (!active) return;
+      setStudents(studentsData);
+      setAttendance(attendanceData);
+      setGradeEntries(gradeData);
+      if (studentsData.length > 0) setDocStudentId(studentsData[0].id);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Status & Feedback
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -71,26 +93,12 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
   // Sheets state
   const [selectedClass, setSelectedClass] = useState<string>('7-A');
   const [sheetExportType, setSheetExportType] = useState<'attendance' | 'grades'>('attendance');
-  const [recentSheets, setRecentSheets] = useState<Array<{ id: string; title: string; url: string; date: string }>>([
-    {
-      id: 'demo-sheet-1',
-      title: 'Class 7-A Attendance Register - Term 3',
-      url: 'https://docs.google.com/spreadsheets',
-      date: 'Today, 09:15 AM',
-    },
-  ]);
+  const [recentSheets, setRecentSheets] = useState<Array<{ id: string; title: string; url: string; date: string }>>([]);
 
   // Docs state
-  const [docStudentId, setDocStudentId] = useState<string>(MOCK_STUDENTS[0]?.id || 'stu-01');
+  const [docStudentId, setDocStudentId] = useState<string>('');
   const [docReportType, setDocReportType] = useState<'progress' | 'certificate' | 'syllabus'>('progress');
-  const [recentDocs, setRecentDocs] = useState<Array<{ id: string; title: string; url: string; date: string }>>([
-    {
-      id: 'demo-doc-1',
-      title: 'Official Academic IEP Progress Report - Jasur Alimov',
-      url: 'https://docs.google.com/document',
-      date: 'Today, 09:40 AM',
-    },
-  ]);
+  const [recentDocs, setRecentDocs] = useState<Array<{ id: string; title: string; url: string; date: string }>>([]);
 
   // Contacts state
   const [contactsList, setContactsList] = useState<GoogleContactItem[]>([]);
@@ -173,7 +181,7 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
       if (sheetExportType === 'attendance') {
         const title = `EduSphere Class ${selectedClass} Attendance - ${new Date().toLocaleDateString()}`;
         const headers = ['Student ID', 'Full Name', 'Class', 'Date', 'Status', 'Check-in Time', 'Method', 'Confidence'];
-        const rows = MOCK_ATTENDANCE.filter((log) => log.className === selectedClass).map((log) => [
+        const rows = attendance.filter((log) => log.className === selectedClass).map((log) => [
           log.studentId,
           log.studentName,
           log.className,
@@ -199,7 +207,7 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
       } else {
         const title = `EduSphere Class ${selectedClass} Gradebook Ledger`;
         const headers = ['Student ID', 'Student Name', 'Class', 'Subject', 'Homework Avg', 'Quizzes Avg', 'Midterm', 'Final', 'Average'];
-        const rows = MOCK_GRADE_ENTRIES.filter((g) => g.className === selectedClass).map((g) => [
+        const rows = gradeEntries.filter((g) => g.className === selectedClass).map((g) => [
           g.studentId,
           g.studentName,
           g.className,
@@ -240,7 +248,8 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
 
     setIsProcessing(true);
     try {
-      const student = MOCK_STUDENTS.find((s) => s.id === docStudentId) || MOCK_STUDENTS[0];
+      const student = students.find((s) => s.id === docStudentId) || students[0];
+      if (!student) throw new Error('No student data available');
 
       if (docReportType === 'progress') {
         const title = `Academic IEP Progress Report: ${student.name} (${student.grade})`;
@@ -798,7 +807,7 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   style={{ minHeight: '44px' }}
                 >
-                  {MOCK_STUDENTS.map((s) => (
+                  {students.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.grade}) • Avg: {s.avgGrade}% • Attendance: {s.attendanceRate}%
                     </option>
@@ -1220,7 +1229,7 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
             <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 p-4 dark:bg-slate-800/50">
               <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Collection: /attendance</div>
               <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                {MOCK_ATTENDANCE.length}+
+                {attendance.length}+
               </div>
               <div className="text-[11px] text-slate-400 mt-1">Active check-ins in cloud ledger</div>
             </div>
@@ -1228,7 +1237,7 @@ export const WorkspaceHub: React.FC<WorkspaceHubProps> = ({ language }) => {
             <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 p-4 dark:bg-slate-800/50">
               <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Collection: /grades</div>
               <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                {MOCK_GRADE_ENTRIES.length}+
+                {gradeEntries.length}+
               </div>
               <div className="text-[11px] text-slate-400 mt-1">Continuous assessment ledgers</div>
             </div>

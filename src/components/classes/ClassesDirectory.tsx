@@ -19,11 +19,11 @@ import {
   Award,
   ExternalLink,
 } from 'lucide-react';
-import { AppLanguage, ClassGroup, StudentRecord, TeacherRecord } from '../../types';
+import { AppLanguage, ClassGroup, ScheduleSlot, StudentRecord, TeacherRecord, UserProfile, UserRole, WeeklyScheduleDraft } from '../../types';
 import { useI18n } from '../../lib/i18n';
 import {
   listSchoolData,
-  createSchoolData,
+  createClassWithSchedule,
   updateSchoolData,
   archiveSchoolData,
   setHomeroomTeacher,
@@ -34,12 +34,14 @@ import {
   getGradeWorkloadStage,
   KAO_GRADE_WORKLOAD_LIMITS,
 } from '../../lib/kyrgyzstanEdu';
-import { MOCK_CLASSES, MOCK_TEACHERS, MOCK_STUDENTS } from '../../data/mockData';
+
 
 interface ClassesDirectoryProps {
   language: AppLanguage;
   teachers?: TeacherRecord[];
   students?: StudentRecord[];
+  currentRole?: UserRole;
+  currentUser?: UserProfile;
   onNavigateTab?: (tabId: string) => void;
 }
 
@@ -56,12 +58,15 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
   language,
   teachers: propTeachers,
   students: propStudents,
+  currentRole = 'admin',
+  currentUser,
   onNavigateTab,
 }) => {
   const t = useI18n(language);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [teachersList, setTeachersList] = useState<TeacherRecord[]>(propTeachers || MOCK_TEACHERS);
+  const [teachersList, setTeachersList] = useState<TeacherRecord[]>(propTeachers || []);
   const [students, setStudents] = useState<StudentRecord[]>(propStudents || []);
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedShift, setSelectedShift] = useState<string>('ALL');
@@ -78,17 +83,31 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
   const [roomInput, setRoomInput] = useState('101');
   const [shiftInput, setShiftInput] = useState<'1-smena' | '2-smena'>('1-smena');
   const [weeklyHoursInput, setWeeklyHoursInput] = useState(24);
+  const [academicYearInput, setAcademicYearInput] = useState('2026-2027');
+  const [subjectInput, setSubjectInput] = useState('Matematika');
+  const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleDraft[]>([]);
   const [homeroomTeacherId, setHomeroomTeacherId] = useState('');
   const [classLanguage, setClassLanguage] = useState<'uz' | 'ru' | 'ky'>('uz');
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSavingClass, setIsSavingClass] = useState(false);
+
+  const scheduleDays: Array<{ day: ScheduleSlot['day']; label: string }> = [
+    { day: 'MON', label: 'Dushanba' },
+    { day: 'TUE', label: 'Seshanba' },
+    { day: 'WED', label: 'Chorshanba' },
+    { day: 'THU', label: 'Payshanba' },
+    { day: 'FRI', label: 'Juma' },
+    { day: 'SAT', label: 'Shanba' },
+  ];
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [classList, teacherList, studentList] = await Promise.allSettled([
+      const [classList, teacherList, studentList, scheduleList] = await Promise.allSettled([
         listSchoolData<ClassGroup>('classes'),
         listSchoolData<TeacherRecord>('teachers'),
         listSchoolData<StudentRecord>('students'),
+        listSchoolData<ScheduleSlot>('schedules'),
       ]);
 
       if (classList.status === 'fulfilled' && classList.value.length > 0) {
@@ -103,6 +122,10 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
 
       if (studentList.status === 'fulfilled' && studentList.value.length > 0) {
         setStudents(studentList.value);
+      }
+
+      if (scheduleList.status === 'fulfilled') {
+        setScheduleSlots(scheduleList.value);
       }
     } catch {
       setClasses([]);
@@ -139,9 +162,24 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
     setRoomInput('101');
     setShiftInput('1-smena');
     setWeeklyHoursInput(24);
-    setHomeroomTeacherId(teachersList[0]?.id || '');
+    setAcademicYearInput('2026-2027');
+    setSubjectInput('Matematika');
+    setWeeklySchedule([]);
+    setHomeroomTeacherId(currentRole === 'teacher' ? (currentUser?.teacherId || '') : (teachersList[0]?.id || ''));
     setClassLanguage(language === 'ky' ? 'ky' : language === 'ru' ? 'ru' : 'uz');
     setIsAddModalOpen(true);
+  };
+
+  const toggleScheduleDay = (day: ScheduleSlot['day']) => {
+    setWeeklySchedule((current) => {
+      const existing = current.find((entry) => entry.day === day);
+      if (existing) return current.filter((entry) => entry.day !== day);
+      return [...current, { day, period: 1, startTime: '08:00', endTime: '08:45', room: roomInput || '101' }];
+    });
+  };
+
+  const updateScheduleDay = (day: ScheduleSlot['day'], patch: Partial<WeeklyScheduleDraft>) => {
+    setWeeklySchedule((current) => current.map((entry) => (entry.day === day ? { ...entry, ...patch } : entry)));
   };
 
   const handleOpenEditModal = (cls: ClassGroup) => {
@@ -172,7 +210,13 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
       return;
     }
 
-    const assignedTeacher = teachersList.find((tc) => tc.id === homeroomTeacherId);
+    const assignedTeacher = currentRole === 'teacher'
+      ? (teachersList.find((teacher) => teacher.id === currentUser?.teacherId) || {
+        id: currentUser?.teacherId || '',
+        name: currentUser?.name || 'O‘qituvchi',
+        phone: currentUser?.phoneNumber || '',
+      } as TeacherRecord)
+      : teachersList.find((tc) => tc.id === homeroomTeacherId);
     const updatedClass: ClassGroup = {
       ...editingClass,
       name: finalName,
@@ -252,41 +296,48 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
       return;
     }
 
-    const assignedTeacher = teachersList.find((tc) => tc.id === homeroomTeacherId);
-    const newClassId = `cls-${finalName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-
-    const newClassObj: ClassGroup = {
-      id: newClassId,
-      name: finalName,
-      gradeNumber: gradeLevelInput,
-      gradeLevel: gradeLevelInput,
-      section: sectionInput,
-      room: roomInput || '101',
-      shift: shiftInput,
-      homeroomTeacher: assignedTeacher?.name || 'Biriktirilmagan',
-      homeroomTeacherId: assignedTeacher?.id,
-      homeroomTeacherPhone: assignedTeacher?.phone || '',
-      studentCount: 0,
-      language: classLanguage,
-      subjects: ['Математика', 'Кыргыз тили', 'Кыргыз адабияты', 'Орус тили', 'Англис тили', 'Тарых'],
-    };
-
-    const updated = sortClassesNaturally([...classes, newClassObj]);
-    setClasses(updated);
-    setIsAddModalOpen(false);
-
-    if (assignedTeacher) {
-      setTeachersList((prev) =>
-        prev.map((t) => (t.id === assignedTeacher.id ? { ...t, homeroomClass: finalName, homeroomClassId: newClassId } : t))
-      );
+    if (weeklySchedule.length === 0) {
+      setFormError('Kamida bitta hafta kuni va dars vaqti tanlanishi kerak.');
+      return;
     }
 
+    const assignedTeacher = currentRole === 'teacher'
+      ? (teachersList.find((teacher) => teacher.id === currentUser?.teacherId) || {
+        id: currentUser?.teacherId || '',
+        name: currentUser?.name || 'O‘qituvchi',
+        phone: currentUser?.phoneNumber || '',
+      } as TeacherRecord)
+      : teachersList.find((teacher) => teacher.id === homeroomTeacherId);
     try {
-      await createSchoolData('classes', newClassObj);
-      if (homeroomTeacherId) {
-        await setHomeroomTeacher(newClassId, homeroomTeacherId);
+      setIsSavingClass(true);
+      const result = await createClassWithSchedule({
+        classData: {
+          name: finalName,
+          gradeNumber: gradeLevelInput,
+          section: sectionInput,
+          room: roomInput || '101',
+          academicYear: academicYearInput,
+          subject: subjectInput.trim(),
+          language: classLanguage,
+          teacherId: assignedTeacher?.id,
+        },
+        schedules: weeklySchedule,
+      });
+      setClasses((current) => sortClassesNaturally([...current, result.class]));
+      setScheduleSlots((current) => [...current, ...result.schedules]);
+      setIsAddModalOpen(false);
+      if (assignedTeacher) {
+        setTeachersList((current) =>
+          current.map((teacher) => teacher.id === assignedTeacher.id
+            ? { ...teacher, assignedClasses: [...new Set([...(teacher.assignedClasses || []), result.class.name])] }
+            : teacher)
+        );
       }
-    } catch {}
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Sinf va jadvalni saqlab bo‘lmadi.');
+    } finally {
+      setIsSavingClass(false);
+    }
   };
 
   const handleDeleteClass = async (classId: string, studentCount = 0) => {
@@ -405,6 +456,9 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
                 : matchedTeacher?.name || 'Biriktirilmagan';
 
             const teacherPhone = cls.homeroomTeacherPhone || matchedTeacher?.phone || '';
+            const classSchedule = scheduleSlots
+              .filter((slot) => slot.classId === cls.id || (slot.className === cls.name && (!cls.academicYear || slot.academicYear === cls.academicYear)))
+              .sort((a, b) => a.day.localeCompare(b.day) || a.period - b.period);
 
             return (
               <div
@@ -427,22 +481,24 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
-                      <button
-                        onClick={() => handleOpenEditModal(cls)}
-                        className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 transition-colors"
-                        title="Sinfni tahrirlash"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClass(cls.id, count)}
-                        className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors"
-                        title="Sinfni o‘chirish"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    {currentRole === 'admin' && (
+                      <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                        <button
+                          onClick={() => handleOpenEditModal(cls)}
+                          className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 transition-colors"
+                          title="Sinfni tahrirlash"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClass(cls.id, count)}
+                          className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Sinfni o‘chirish"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* KAO Workload Matrix Badge with Official BUP Citation */}
@@ -507,6 +563,21 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
                       )}
                     </div>
                   </div>
+
+                  <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <div className="mb-1 text-[10px] font-bold uppercase text-slate-400">{cls.subject || 'Fan'} · {cls.academicYear || '2026-2027'}</div>
+                    {classSchedule.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {classSchedule.map((slot) => (
+                          <span key={slot.id} className="rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
+                            {scheduleDays.find((item) => item.day === slot.day)?.label || slot.day} · {slot.period}-para · {slot.time}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-400">Haftalik jadval kiritilmagan</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
@@ -533,7 +604,7 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
       {/* Create Class Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <FolderKanban className="h-5 w-5 text-indigo-600" />
@@ -599,14 +670,41 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">O‘quv yili</label>
+                  <input
+                    type="text"
+                    value={academicYearInput}
+                    onChange={(e) => setAcademicYearInput(e.target.value)}
+                    placeholder="2026-2027"
+                    pattern="20[0-9]{2}[-/]20[0-9]{2}"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Fan</label>
+                  <input
+                    type="text"
+                    value={subjectInput}
+                    onChange={(e) => setSubjectInput(e.target.value)}
+                    placeholder="Matematika"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    required
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300">Sinf rahbari (O‘qituvchi)</label>
                 <select
                   value={homeroomTeacherId}
                   onChange={(e) => setHomeroomTeacherId(e.target.value)}
+                  disabled={currentRole === 'teacher'}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-semibold dark:border-slate-700 dark:bg-slate-800"
                 >
-                  <option value="">Tanlanmagan / Biriktirilmagan</option>
+                  {currentRole !== 'teacher' && <option value="">Tanlanmagan / Biriktirilmagan</option>}
                   {teachersList.map((tc) => (
                     <option key={tc.id} value={tc.id}>
                       {tc.name} ({tc.subject || 'O‘qituvchi'}) {tc.phone ? `— ${tc.phone}` : ''}
@@ -638,6 +736,54 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
                 </div>
               </div>
 
+              <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+                <div className="mb-3 flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-indigo-600" />
+                  <h4 className="font-bold text-slate-900 dark:text-white">Haftalik dars jadvali</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {scheduleDays.map(({ day, label }) => {
+                    const isSelected = weeklySchedule.some((entry) => entry.day === day);
+                    return (
+                      <label key={day} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleScheduleDay(day)}
+                          className="h-4 w-4 accent-indigo-600"
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {weeklySchedule.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {weeklySchedule.map((entry) => {
+                      const label = scheduleDays.find((item) => item.day === entry.day)?.label || entry.day;
+                      return (
+                        <div key={entry.day} className="grid grid-cols-[minmax(84px,1fr)_72px_1fr_1fr_minmax(84px,1fr)] items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800">
+                          <div className="pb-2 text-xs font-bold text-slate-700 dark:text-slate-200">{label}</div>
+                          <label className="text-[10px] font-bold text-slate-500">Para
+                            <input type="number" min={1} max={12} value={entry.period} onChange={(e) => updateScheduleDay(entry.day, { period: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-bold dark:border-slate-600 dark:bg-slate-900" />
+                          </label>
+                          <label className="text-[10px] font-bold text-slate-500">Boshlanish
+                            <input type="time" value={entry.startTime} onChange={(e) => updateScheduleDay(entry.day, { startTime: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-bold dark:border-slate-600 dark:bg-slate-900" />
+                          </label>
+                          <label className="text-[10px] font-bold text-slate-500">Tugash
+                            <input type="time" value={entry.endTime} onChange={(e) => updateScheduleDay(entry.day, { endTime: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-bold dark:border-slate-600 dark:bg-slate-900" />
+                          </label>
+                          <label className="text-[10px] font-bold text-slate-500">Xona
+                            <input type="text" value={entry.room} onChange={(e) => updateScheduleDay(entry.day, { room: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-bold dark:border-slate-600 dark:bg-slate-900" />
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="mt-5 flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
@@ -648,9 +794,10 @@ export const ClassesDirectory: React.FC<ClassesDirectoryProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={isSavingClass}
                   className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white hover:bg-indigo-700 active:scale-95 transition-all shadow-md"
                 >
-                  {t('create')}
+                  {isSavingClass ? 'Saqlanmoqda...' : t('create')}
                 </button>
               </div>
             </form>

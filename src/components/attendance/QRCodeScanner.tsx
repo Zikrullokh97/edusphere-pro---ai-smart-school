@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, AttendanceRecord, StudentRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
 import { pwaManager } from '../../lib/pwa';
 import { authenticatedFetch } from '../../lib/api';
 
@@ -36,6 +36,7 @@ export interface QRCodeScannerProps {
   language: AppLanguage;
   selectedClass: string;
   selectedDate: string;
+  selectedLessonSessionId: string;
   records: AttendanceRecord[];
   onStatusChange: (
     studentId: string,
@@ -63,6 +64,7 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
   language,
   selectedClass,
   selectedDate,
+  selectedLessonSessionId,
   records,
   onStatusChange,
   onBatchPresent,
@@ -83,6 +85,19 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
   const [recentScans, setRecentScans] = useState<QRScanHistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<'scanner' | 'student-badges' | 'class-pass'>('scanner');
   const [isSyncingBackend, setIsSyncingBackend] = useState(false);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    listSchoolData<StudentRecord>('students')
+      .then((items) => {
+        if (active) setStudents(items);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Student Pass Modal
   const [badgeModalStudent, setBadgeModalStudent] = useState<StudentRecord | null>(null);
@@ -230,6 +245,7 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
           studentName,
           className,
           date: selectedDate,
+          lessonId: selectedLessonSessionId,
           scannedBy: 'Teacher (Camera Scanner)',
         }),
       });
@@ -271,7 +287,7 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
       }
 
       // Match Student in Directory
-      matchedStudent = MOCK_STUDENTS.find(
+      matchedStudent = students.find(
         (s) =>
           s.studentId.toLowerCase() === studentIdToFind.toLowerCase() ||
           s.id.toLowerCase() === studentIdToFind.toLowerCase() ||
@@ -532,7 +548,7 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
   };
 
   // Class Students Filtered
-  const classStudents = MOCK_STUDENTS.filter((s) => s.grade === selectedClass);
+  const classStudents = students.filter((s) => s.grade === selectedClass);
   const presentStudentIds = new Set(
     records.filter((r) => r.status === 'present').map((r) => r.studentId)
   );

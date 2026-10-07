@@ -1,4 +1,4 @@
-import { AppLanguage, KTPDocument, KTPLessonItem, LessonMaterial, QuarterId } from '../types';
+import { AppLanguage, CognitiveLevel, KTPDocument, KTPLessonItem, LessonMaterial, QuarterId } from '../types';
 import { KAO_OFFICIAL_PROVENANCE_REGISTRY } from './kyrgyzstanEdu';
 
 /**
@@ -621,6 +621,9 @@ export interface ResolvedLessonContext {
   homework: string;
   conspectDraft: string;
   materials: LessonMaterial[];
+  learningOutcomeId?: string;
+  learningOutcomeCode?: string;
+  cognitiveLevel?: CognitiveLevel;
   totalHours: number;
   completedLessonsCount: number;
   pacingPercentage: number;
@@ -629,8 +632,8 @@ export interface ResolvedLessonContext {
 }
 
 /**
- * AI Context Engine: Connects Teacher + Subject + Class + Approved KTP + Completed Sessions
- * Deterministically extracts the exact next sequential topic without hallucination.
+ * AI Context Engine: Connects Teacher + Subject + Class + Approved KTP + Completed Sessions + State Learning Outcomes
+ * Deterministically extracts the exact next sequential topic and targeted Learning Outcome without hallucination.
  */
 export function resolveNextLessonContext(params: {
   className: string;
@@ -699,6 +702,9 @@ export function resolveNextLessonContext(params: {
     homework,
     conspectDraft,
     materials,
+    learningOutcomeId: lessonItem?.learningOutcomeId,
+    learningOutcomeCode: lessonItem?.learningOutcomeCode,
+    cognitiveLevel: lessonItem?.cognitiveLevel || 'productive',
     totalHours,
     completedLessonsCount: completedCount,
     pacingPercentage,
@@ -706,4 +712,5 @@ export function resolveNextLessonContext(params: {
     ktpStatus: doc?.status || 'draft',
   };
 }
+
 

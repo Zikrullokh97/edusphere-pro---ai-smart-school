@@ -138,6 +138,10 @@ export interface ClassGroup {
   id: string;
   name: string; // e.g. "7-A"
   gradeNumber: number;
+  academicYear?: string;
+  subject?: string;
+  teacherId?: string;
+  ownerUid?: string;
   gradeLevel?: number;
   section?: string;
   shift?: string;
@@ -210,7 +214,35 @@ export interface ScheduleSlot {
   teacherName: string;
   teacherId?: string;
   room: string;
+  classId?: string;
+  academicYear?: string;
+  subjectId?: string;
+  startTime?: string;
+  endTime?: string;
+  lessonNumber?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   hasConflict?: boolean;
+}
+
+export interface WeeklyScheduleDraft {
+  day: ScheduleSlot['day'];
+  period: number;
+  startTime: string;
+  endTime: string;
+  room: string;
+}
+
+export interface CreateClassWithScheduleInput {
+  classData: Pick<ClassGroup, 'name' | 'gradeNumber' | 'section' | 'room'> & {
+    academicYear: string;
+    subject: string;
+    language?: string;
+    capacity?: number;
+    teacherId?: string;
+  };
+  schedules: WeeklyScheduleDraft[];
 }
 
 export interface TeacherWorkload {
@@ -237,6 +269,7 @@ export interface AttendanceEntry {
   studentName: string;
   className: string;
   date: string;
+  lessonId: string;
   status: AttendanceStatus;
   time?: string;
   checkInTime?: string;
@@ -513,6 +546,9 @@ export interface KTPLessonItem {
   materials?: string[];
   competencies?: string[];
   learningOutcomes?: string[];
+  learningOutcomeId?: string;
+  learningOutcomeCode?: string;
+  cognitiveLevel?: CognitiveLevel;
   source?: KAOSourceProvenance;
 }
 
@@ -600,6 +636,9 @@ export interface LessonSessionRecord {
   conspectDraft?: string;
   homework?: string;
   materials?: LessonMaterial[];
+  learningOutcomeId?: string;
+  learningOutcomeCode?: string;
+  cognitiveLevel?: CognitiveLevel;
   planned?: {
     topic: string;
     objective?: string;
@@ -798,3 +837,148 @@ export interface RiskAlertItem {
   primaryReason: string;
   recommendedAction: string;
 }
+
+// ==========================================
+// Standards-Based Learning & Curriculum Hierarchy Types
+// Hierarchy: Standard -> Basic Curriculum (BUP) -> Subject Standard -> Curriculum -> Grade -> Subject -> Learning Outcome (LO) -> Unit -> Topic -> Lesson -> Resource -> Activity -> Assessment -> Student Mastery
+// ==========================================
+
+export type CognitiveLevel = 'reproductive' | 'productive' | 'creative';
+export type AssessmentType = 'diagnostic' | 'formative' | 'summative' | 'pisa_task';
+export type LOMasteryStatus = 'not_started' | 'developing' | 'mastered' | 'exceeded';
+
+export interface LearningOutcome {
+  id: string; // e.g. "LO-MATH-5-001", "LO-KYRLANG-7-002"
+  code: string; // e.g. "5.MATH.NUM.01"
+  subjectId: string;
+  subjectCode: string;
+  grade: number; // 1..12
+  unitNumber: number;
+  unitTitle: string; // e.g. "Natural Sonlar va Kasrlar" / "Натуралдык сандар"
+  topic: string;
+  title: string;
+  description: {
+    uz: string;
+    ru: string;
+    ky: string;
+    en: string;
+  };
+  cognitiveLevel: CognitiveLevel; // PISA taxonomy: reproductive, productive, creative
+  standardVersion: string; // e.g. "KAO-STD-2026-V1"
+  curriculumFramework: '11_YEAR' | '12_YEAR';
+  recommendedHours: number;
+  criteria: string[];
+  sampleTasks?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CurriculumStandard {
+  id: string;
+  code: string; // e.g. "STD-KYR-2026-STEM"
+  title: string;
+  nameKy: string;
+  nameRu: string;
+  nameUz: string;
+  authority: 'KAO' | 'MON_KR';
+  framework: '11_YEAR' | '12_YEAR';
+  orderNumber: string; // e.g. "№973" or "№969/1"
+  version: string;
+  effectiveYear: string; // "2026-2027"
+  status: 'active' | 'draft' | 'deprecated';
+  domains: Array<{
+    code: string;
+    nameKy: string;
+    nameRu: string;
+    nameUz: string;
+    learningOutcomesCount: number;
+  }>;
+}
+
+export interface CurriculumVersion {
+  id: string;
+  standardId: string;
+  name: string;
+  framework: '11_YEAR' | '12_YEAR';
+  orderNumber: string;
+  academicYear: string;
+  status: 'active' | 'draft' | 'archived';
+  description: string;
+  totalOutcomesCount: number;
+  lastUpdated: string;
+}
+
+export interface PedagogicalResource {
+  id: string;
+  learningOutcomeId: string;
+  subjectCode: string;
+  grade: number;
+  type: 'lesson_plan' | 'presentation' | 'worksheet' | 'lab_guide' | 'rubric' | 'video' | 'interactive';
+  title: string;
+  description?: string;
+  author: string;
+  language: 'ky' | 'ru' | 'uz' | 'en';
+  fileUrl?: string;
+  contentSnippet?: string;
+  cognitiveLevel?: CognitiveLevel;
+  tags: string[];
+  downloadsCount?: number;
+  likesCount?: number;
+  createdAt: string;
+}
+
+export interface AssessmentRubricCriterion {
+  id: string;
+  name: string;
+  maxScore: number;
+  levelDescriptions: {
+    exceeded: string;
+    mastered: string;
+    developing: string;
+    not_started: string;
+  };
+}
+
+export interface AssessmentItem {
+  id: string;
+  learningOutcomeId: string;
+  type: AssessmentType;
+  cognitiveLevel: CognitiveLevel;
+  question: string;
+  maxScore: number;
+  rubric: AssessmentRubricCriterion[];
+  sampleSolution?: string;
+  timeLimitMinutes?: number;
+}
+
+export interface StudentLOMastery {
+  studentId: string;
+  studentName?: string;
+  learningOutcomeId: string;
+  learningOutcomeCode: string;
+  learningOutcomeTitle: string;
+  subjectCode: string;
+  grade: number;
+  masteryScore: number; // 0..100%
+  status: LOMasteryStatus;
+  cognitiveLevel: CognitiveLevel;
+  assessmentsCompleted: number;
+  lastAssessedAt: string;
+  teacherFeedback?: string;
+  evidenceSessionIds?: string[];
+}
+
+export interface ClassLOMasteryOverview {
+  className: string;
+  subjectCode: string;
+  learningOutcomeId: string;
+  learningOutcomeCode: string;
+  learningOutcomeTitle: string;
+  totalStudents: number;
+  masteredCount: number;
+  developingCount: number;
+  atRiskCount: number;
+  averageMasteryScore: number; // 0..100%
+  status: 'proficient' | 'satisfactory' | 'needs_attention' | 'critical';
+}
+

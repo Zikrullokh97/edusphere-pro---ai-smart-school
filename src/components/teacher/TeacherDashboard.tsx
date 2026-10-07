@@ -30,14 +30,14 @@ import {
 } from 'lucide-react';
 import { AppLanguage, ScheduleSlot, StudentRecord, TeacherRecord, UserProfile, HomeworkAssignment } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { authenticatedFetch } from '../../lib/api';
+import { authenticatedFetch, saveLessonSession } from '../../lib/api';
 import {
   SEED_KTP_DOCUMENTS,
   resolveNextLessonContext,
   isKTPApproved,
   getKTPStatusLabel,
 } from '../../lib/ktpEngine';
-import { MOCK_TEACHERS, MOCK_SCHEDULE } from '../../data/mockData';
+
 import { listSchoolData } from '../../lib/schoolRepository';
 
 interface TeacherDashboardProps {
@@ -96,8 +96,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   language,
   onNavigate,
   onSelectClassWorkspace,
-  masterSchedule = MOCK_SCHEDULE,
-  teachers = MOCK_TEACHERS,
+  masterSchedule = [],
+  teachers = [],
   currentUser,
 }) => {
   const t = useI18n(language);
@@ -130,7 +130,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         workloadHours: currentUser.workloadHours || 0,
       };
     }
-    return teachers[0] || MOCK_TEACHERS[0] || {
+    return teachers[0] || {
       id: 'tch-001',
       name: 'O‘qituvchi',
       email: 'teacher@edusphere.school',
@@ -320,21 +320,34 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setQuickAttendanceRecorded((prev) => ({ ...prev, [slot.id]: true }));
     try {
       const studentsInClass = allStudents.filter((s) => s.grade === slot.className);
-      const entries = studentsInClass.map((s) => ({
-        studentId: s.id,
-        studentName: s.name,
-        status: 'present',
-      }));
-      await authenticatedFetch('/api/attendance/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          className: slot.className,
-          date: new Date().toISOString().slice(0, 10),
-          entries,
-        }),
+      const today = new Date().toISOString().slice(0, 10);
+      const scheduleSlot = displayedSlots.find((item) => item.id === slot.id);
+      if (!scheduleSlot) throw new Error('Schedule slot not found');
+      const sessionId = `session-${scheduleSlot.id}-${today}`;
+      const classId = scheduleSlot.classId || (studentsInClass[0] as any)?.classId;
+      if (!classId) throw new Error('Class ID is missing');
+      await saveLessonSession({
+        id: sessionId,
+        slotId: scheduleSlot.id,
+        classId,
+        className: scheduleSlot.className,
+        subject: scheduleSlot.subject,
+        subjectId: scheduleSlot.subjectId,
+        date: today,
+        weekday: scheduleSlot.day,
+        period: scheduleSlot.period,
+        lessonNumber: scheduleSlot.lessonNumber || scheduleSlot.period,
+        topic: slot.className === scheduleSlot.className ? (scheduleSlot as any).topic || scheduleSlot.subject : scheduleSlot.subject,
+        status: 'COMPLETED',
+        attendance: { present: studentsInClass.map((s) => s.id), absent: [], late: [], excused: [] },
+        grades: {},
+        comments: {},
       });
-    } catch {}
+    } catch {
+      setQuickAttendanceRecorded((prev) => ({ ...prev, [slot.id]: false }));
+      showToast("Davomat saqlanmadi: lesson session/classId talab qilinadi.");
+      return;
+    }
     showToast(`${slot.className} sinfida barcha o‘quvchilar "Bor" deb qayd etildi va saqlandi!`);
   };
 
@@ -387,27 +400,43 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   };
 
   const handleSaveAttendance = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const slot = displayedSlots.find((item) => item.className === selectedClass);
+    if (!slot?.id) {
+      showToast('Davomat saqlanmadi: tanlangan sinf uchun lesson session topilmadi.');
+      return;
+    }
     try {
-      const res = await authenticatedFetch('/api/attendance/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          className: selectedClass,
-          date: new Date().toISOString().slice(0, 10),
-          entries: attendanceRoster.map((r) => ({
-            studentId: r.id,
-            studentName: r.studentName,
-            status: r.status,
-          })),
-        }),
+      const studentsWithClass = attendanceRoster.map((r) => ({ ...r, classId: (allStudents.find((s) => s.id === r.id) as any)?.classId }));
+      const classId = slot.classId || studentsWithClass.find((r) => r.classId)?.classId;
+      if (!classId) throw new Error('Class ID is missing');
+      const sessionId = `session-${slot.id}-${today}`;
+      const attendance = {
+        present: studentsWithClass.filter((r) => r.status === 'present').map((r) => r.id),
+        absent: studentsWithClass.filter((r) => r.status === 'absent').map((r) => r.id),
+        late: studentsWithClass.filter((r) => r.status === 'late').map((r) => r.id),
+        excused: studentsWithClass.filter((r) => r.status === 'excused').map((r) => r.id),
+      };
+      await saveLessonSession({
+        id: sessionId,
+        slotId: slot.id,
+        classId,
+        className: selectedClass,
+        subject: slot.subject,
+        subjectId: slot.subjectId,
+        date: today,
+        weekday: slot.day,
+        period: slot.period,
+        lessonNumber: slot.lessonNumber || slot.period,
+        topic: slot.subject,
+        status: 'COMPLETED',
+        attendance,
+        grades: {},
+        comments: {},
       });
-      if (res.ok) {
-        showToast(`${selectedClass} sinfi uchun davomat muvaffaqiyatli saqlandi!`);
-      } else {
-        showToast('Davomat saqlandi (lokal keshda sinxronlandi).');
-      }
-    } catch {
       showToast(`${selectedClass} sinfi uchun davomat muvaffaqiyatli saqlandi!`);
+    } catch {
+      showToast('Davomat saqlanmadi: lessonId va classId talab qilinadi.');
     }
   };
 

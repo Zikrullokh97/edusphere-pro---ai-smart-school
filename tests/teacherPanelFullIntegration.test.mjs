@@ -301,7 +301,7 @@ test('10. Turnstile Scan & Attendance Synchronization', async () => {
       Authorization: `Bearer ${teacherToken}`,
     },
     body: JSON.stringify({
-      iin: '20150010150123',
+      studentId: 'stu-0001',
       direction: 'IN',
       gateId: 'GATE-01',
       method: 'QR',

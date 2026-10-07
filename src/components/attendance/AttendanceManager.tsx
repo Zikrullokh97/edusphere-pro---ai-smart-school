@@ -32,13 +32,15 @@ import {
   Paperclip,
   Plus,
 } from 'lucide-react';
-import { AppLanguage, AttendanceRecord, StudentRecord, ClassGroup } from '../../types';
+import { AppLanguage, AttendanceRecord, StudentRecord, ClassGroup, ScheduleSlot } from '../../types';
+import { getLessonSessions, type LessonSession } from '../../lib/lessonSessions';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS, MOCK_ATTENDANCE } from '../../data/mockData';
+
 import { pwaManager, PWAStats } from '../../lib/pwa';
 import { offlineDB, DBAttendanceRecord } from '../../lib/indexedDB';
 import { QRCodeScanner } from './QRCodeScanner';
 import { listSchoolData } from '../../lib/schoolRepository';
+import { listAttendance, saveAttendance } from '../../lib/api';
 import { ALL_SCHOOL_CLASSES } from '../../lib/scheduleGenerator';
 
 interface AttendanceManagerProps {
@@ -52,6 +54,8 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   const [selectedClass, setSelectedClass] = useState('7-A');
   const [availableClasses, setAvailableClasses] = useState<string[]>(ALL_SCHOOL_CLASSES);
   const [selectedDate, setSelectedDate] = useState('2026-08-20');
+  const [lessonSessions, setLessonSessions] = useState<LessonSession[]>([]);
+  const [selectedLessonSessionId, setSelectedLessonSessionId] = useState('');
   const [mode, setMode] = useState<'roster' | 'faceid' | 'swipe' | 'qr'>('roster');
 
   useEffect(() => {
@@ -61,6 +65,27 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       }
     }).catch(() => undefined);
   }, []);
+
+  // Canonical lesson sessions are derived from the published weekly schedule + selected date.
+  useEffect(() => {
+    let mounted = true;
+    const loadLessonSessions = async () => {
+      try {
+        const schedules = await listSchoolData<ScheduleSlot>('schedules');
+        const sessions = getLessonSessions(schedules, selectedClass, selectedDate);
+        if (!mounted) return;
+        setLessonSessions(sessions);
+        setSelectedLessonSessionId((current) => sessions.some((s) => s.sessionId === current) ? current : (sessions[0]?.sessionId || ''));
+      } catch (error) {
+        if (!mounted) return;
+        setLessonSessions([]);
+        setSelectedLessonSessionId('');
+        console.warn('Unable to load lesson sessions:', error);
+      }
+    };
+    loadLessonSessions();
+    return () => { mounted = false; };
+  }, [selectedClass, selectedDate]);
 
   // IndexedDB Attendance Records
   const [records, setRecords] = useState<DBAttendanceRecord[]>([]);
@@ -194,21 +219,30 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     };
   }, []);
 
-  // 2. Load attendance from IndexedDB and Remote API whenever selectedClass or selectedDate changes
+  // 2. Load attendance for the selected lesson session.
+  // Legacy daily records remain readable, but are never used as a write target.
   useEffect(() => {
     let isMounted = true;
     const loadFromDataSource = async () => {
       setIsLoadingDB(true);
       try {
-        let dbRecords = await offlineDB.getAttendanceRecords(selectedClass, selectedDate);
+        if (!selectedLessonSessionId) {
+          if (isMounted) setRecords([]);
+          return;
+        }
+        let dbRecords = await offlineDB.getAttendanceRecords(selectedClass, selectedDate, selectedLessonSessionId);
         let realStudents: StudentRecord[] = [];
         try {
           const [remoteRecords, remoteStudents] = await Promise.all([
-            listSchoolData<DBAttendanceRecord>('attendance'),
+            listAttendance({
+              className: selectedClass,
+              date: selectedDate,
+              lessonId: selectedLessonSessionId,
+            }),
             listSchoolData<StudentRecord>('students'),
           ]);
           realStudents = remoteStudents.filter((s) => s.grade === selectedClass);
-          const matchingRemote = remoteRecords.filter((record) => record.className === selectedClass && record.date === selectedDate);
+          const matchingRemote = remoteRecords as DBAttendanceRecord[];
           if (matchingRemote.length > 0) {
             await offlineDB.saveBatchAttendance(matchingRemote, 'synced');
             dbRecords = matchingRemote;
@@ -223,11 +257,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           } else if (realStudents.length > 0) {
             // Generate roster for all real enrolled students in this class
             const realRoster: DBAttendanceRecord[] = realStudents.map((st) => ({
-              id: `att-${st.id}-${selectedDate}-${selectedClass}`,
+              id: `att-${st.id}-${selectedDate}-${selectedLessonSessionId}`,
               studentId: st.id,
               studentName: st.name,
               className: selectedClass,
               date: selectedDate,
+              lessonId: selectedLessonSessionId,
               status: 'present',
               syncStatus: 'synced',
               time: '08:30',
@@ -236,22 +271,12 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             setRecords(realRoster);
             offlineDB.saveBatchAttendance(realRoster, 'synced').catch(console.warn);
           } else {
-            // Fallback for offline dev
-            const filteredMock = MOCK_ATTENDANCE.filter(
-              (r) => r.className === selectedClass || !r.className
-            ).map((r) => ({
-              ...r,
-              className: selectedClass,
-              date: selectedDate,
-              id: `att-${r.studentId}-${selectedDate}-${selectedClass}`,
-              syncStatus: 'synced' as const,
-            }));
-            setRecords(filteredMock);
+            setRecords([]);
           }
         }
       } catch (err) {
         console.warn('Error loading attendance data:', err);
-        setRecords(MOCK_ATTENDANCE);
+        setRecords([]);
       } finally {
         if (isMounted) setIsLoadingDB(false);
       }
@@ -261,7 +286,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedClass, selectedDate]);
+  }, [selectedClass, selectedDate, selectedLessonSessionId]);
 
   const handleQRScanSuccess = (item: {
     studentId: string;
@@ -334,16 +359,21 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     newStatus: 'present' | 'late' | 'absent' | 'excused',
     studentName?: string
   ) => {
+    if (!selectedLessonSessionId) {
+      showToast('⚠️ Avval aniq darsni tanlang. Davomat lesson session ID bilan saqlanadi.');
+      return;
+    }
     const prevRecord = records.find((r) => r.studentId === studentId);
     const prevStatus = prevRecord ? prevRecord.status : 'absent';
     const name = studentName || prevRecord?.studentName || 'Student';
 
     const updatedRecord: DBAttendanceRecord = {
-      id: prevRecord?.id || `att-${studentId}-${selectedDate}-${selectedClass}`,
+      id: prevRecord?.id || `att-${studentId}-${selectedDate}-${selectedLessonSessionId}`,
       studentId,
       studentName: name,
       className: selectedClass,
       date: selectedDate,
+      lessonId: selectedLessonSessionId,
       status: newStatus,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       method: 'manual',
@@ -355,8 +385,41 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
       prev.map((r) => (r.studentId === studentId ? updatedRecord : r))
     );
 
-    // Save to IndexedDB and queue background sync
-    await pwaManager.recordAttendance(updatedRecord, name);
+    if (isOnline) {
+      try {
+        const saved = await saveAttendance([{
+          studentId,
+          studentName: name,
+          className: selectedClass,
+          date: selectedDate,
+          lessonId: selectedLessonSessionId,
+          classId: lessonSessions.find((s) => s.sessionId === selectedLessonSessionId)?.classId,
+          subjectId: lessonSessions.find((s) => s.sessionId === selectedLessonSessionId)?.subjectId,
+          status: newStatus,
+          method: 'manual',
+        }]);
+        if (saved.length > 0) {
+          setRecords((prev) => prev.map((record) => record.studentId === studentId ? {
+            ...record,
+            ...saved[0],
+            id: saved[0].id || updatedRecord.id,
+            studentName: saved[0].studentName || name,
+            method: saved[0].method === 'turnstile' ? 'manual' : saved[0].method,
+            syncStatus: 'synced',
+          } as DBAttendanceRecord : record));
+        }
+      } catch (error) {
+        setRecords((prev) => prev.map((record) => record.studentId === studentId ? {
+          ...record,
+          ...updatedRecord,
+          syncStatus: 'pending',
+        } : record));
+        await pwaManager.recordAttendance(updatedRecord, name);
+        showToast(error instanceof Error ? error.message : 'Attendance save failed; queued for retry');
+      }
+    } else {
+      await pwaManager.recordAttendance(updatedRecord, name);
+    }
 
     // Save undo
     setLastAction({
@@ -407,14 +470,45 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
   };
 
   const handleMarkAllPresent = async () => {
+    if (!selectedLessonSessionId) {
+      showToast('⚠️ Avval aniq darsni tanlang.');
+      return;
+    }
     const updated = records.map((r) => ({
       ...r,
       status: 'present' as const,
       syncStatus: 'pending' as const,
     }));
     setRecords(updated);
-    await pwaManager.recordBatchAttendance(updated, selectedClass, selectedDate);
-    showToast(`✓ Marked all ${updated.length} students present & saved to IndexedDB!`);
+    if (isOnline) {
+      try {
+        const saved = await saveAttendance(updated.map((record) => ({
+          studentId: record.studentId,
+          studentName: record.studentName,
+          className: selectedClass,
+          date: selectedDate,
+          lessonId: selectedLessonSessionId,
+          classId: lessonSessions.find((s) => s.sessionId === selectedLessonSessionId)?.classId,
+          subjectId: lessonSessions.find((s) => s.sessionId === selectedLessonSessionId)?.subjectId,
+          status: 'present' as const,
+          method: 'manual' as const,
+        })));
+        setRecords(saved.map((record) => ({
+          ...record,
+          id: record.id || `att-${record.studentId}-${selectedDate}-${selectedLessonSessionId}`,
+          studentName: record.studentName || 'Student',
+          method: record.method === 'turnstile' ? 'manual' : record.method,
+          syncStatus: 'synced' as const,
+        } as DBAttendanceRecord)));
+        showToast(`✓ Marked all ${saved.length} students present & saved to school backend!`);
+      } catch (error) {
+        await pwaManager.recordBatchAttendance(updated, selectedClass, selectedDate);
+        showToast(error instanceof Error ? error.message : 'Attendance save failed; queued for retry');
+      }
+    } else {
+      await pwaManager.recordBatchAttendance(updated, selectedClass, selectedDate);
+      showToast(`✓ Offline: ${updated.length} attendance records queued for sync`);
+    }
   };
 
   const handleToggleSimulatedOffline = () => {
@@ -434,7 +528,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
     if (result.success) {
       showToast(`✓ Synchronized ${result.syncedCount} records with school backend!`);
       // Reload refreshed sync status from IndexedDB
-      const refreshed = await offlineDB.getAttendanceRecords(selectedClass, selectedDate);
+      const refreshed = await offlineDB.getAttendanceRecords(selectedClass, selectedDate, selectedLessonSessionId);
       setRecords(refreshed);
     } else {
       showToast('⚠️ Sync failed. Data remains safely saved in IndexedDB.');
@@ -607,6 +701,27 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
             </div>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/20 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <span>Sinf</span>
+            <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+              {availableClasses.map((className) => <option key={className} value={className}>{className}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <span>Sana</span>
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900" />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <span>Dars / lesson session</span>
+            <select value={selectedLessonSessionId} onChange={(e) => setSelectedLessonSessionId(e.target.value)} disabled={!lessonSessions.length} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900">
+              {!lessonSessions.length && <option value="">Jadval bo'yicha dars topilmadi</option>}
+              {lessonSessions.map((session) => <option key={session.sessionId} value={session.sessionId}>{session.period}-dars • {session.subject} • {session.time}</option>)}
+            </select>
+          </label>
+        </div>
+        {!selectedLessonSessionId && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">Davomat yozish uchun jadvaldagi aniq darsni tanlang. Eski daily/legacy yozuvlar yangi davomat uchun ishlatilmaydi.</div>}
 
         {/* Active Mode Descriptive Status Bar */}
         <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600 dark:bg-slate-800/50 dark:text-slate-300 border border-slate-100 dark:border-slate-800">
@@ -948,6 +1063,7 @@ export const AttendanceManager: React.FC<AttendanceManagerProps> = ({
           language={language}
           selectedClass={selectedClass}
           selectedDate={selectedDate}
+          selectedLessonSessionId={selectedLessonSessionId}
           records={records}
           onStatusChange={handleStatusChange}
           onBatchPresent={handleMarkAllPresent}

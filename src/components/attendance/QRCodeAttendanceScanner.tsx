@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { AppLanguage, AttendanceRecord, StudentRecord } from '../../types';
 import { useI18n } from '../../lib/i18n';
-import { MOCK_STUDENTS } from '../../data/mockData';
+import { listSchoolData } from '../../lib/schoolRepository';
 import { pwaManager } from '../../lib/pwa';
 import { authenticatedFetch } from '../../lib/api';
 
@@ -76,6 +76,19 @@ export const QRCodeAttendanceScanner: React.FC<QRCodeAttendanceScannerProps> = (
   const [lastScannedPayload, setLastScannedPayload] = useState<string | null>(null);
   const [recentScans, setRecentScans] = useState<QRScanResultItem[]>([]);
   const [activeTab, setActiveTab] = useState<'scanner' | 'student-badges' | 'class-pass'>('scanner');
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    listSchoolData<StudentRecord>('students')
+      .then((items) => {
+        if (active) setStudents(items);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Selected Student for Badge Preview Modal
   const [badgeModalStudent, setBadgeModalStudent] = useState<StudentRecord | null>(null);
@@ -237,8 +250,8 @@ export const QRCodeAttendanceScanner: React.FC<QRCodeAttendanceScannerProps> = (
         // Fallback to literal search
       }
 
-      // Find student in MOCK_STUDENTS or records
-      matchedStudent = MOCK_STUDENTS.find(
+      // Match student against the authenticated school roster or scanned records
+      matchedStudent = students.find(
         (s) =>
           s.studentId.toLowerCase() === studentIdToFind.toLowerCase() ||
           s.id.toLowerCase() === studentIdToFind.toLowerCase() ||
@@ -542,7 +555,7 @@ export const QRCodeAttendanceScanner: React.FC<QRCodeAttendanceScannerProps> = (
   };
 
   // Class Students filtered
-  const classStudents = MOCK_STUDENTS.filter((s) => s.grade === selectedClass);
+  const classStudents = students.filter((s) => s.grade === selectedClass);
   const presentStudentIds = new Set(
     records.filter((r) => r.status === 'present').map((r) => r.studentId)
   );
